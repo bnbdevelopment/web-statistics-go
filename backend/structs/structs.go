@@ -11,6 +11,14 @@ type WebMetric struct {
 	Site      string    `gorm:"size:255"`
 	Ip        string    `gorm:"size:255"`
 	SessionId string    `gorm:"size:255"`
+
+	// Geolocation fields (nullable for graceful degradation)
+	CountryCode *string  `gorm:"size:2"`              // ISO 3166-1 alpha-2 (e.g., "US", "GB")
+	CountryName *string  `gorm:"size:255"`            // Full country name
+	City        *string  `gorm:"size:255"`            // City name
+	Region      *string  `gorm:"size:255"`            // Region/State
+	Latitude    *float64 `gorm:"type:decimal(10,8)"` // Coordinate precision
+	Longitude   *float64 `gorm:"type:decimal(11,8)"` // Coordinate precision
 }
 
 type QueryResult struct {
