@@ -7,6 +7,7 @@ import (
 	"statistics/structs"
 	"time"
 
+	"github.com/mmcloughlin/geohash"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -37,7 +38,7 @@ var (
 	trafficByCoordinates = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "statistics_traffic_coordinates",
 		Help: "Traffic by geographic coordinates for geomap visualization",
-	}, []string{"site", "latitude", "longitude", "city", "country_code"})
+	}, []string{"site", "geohash", "latitude", "longitude", "city", "country_code"})
 )
 
 func RecordMetrics() {
@@ -155,8 +156,12 @@ func updateGeoMetrics(site string) {
 	_ = database.Session.Raw(coordQuery, last24h, now, site).Scan(&coordStats).Error
 
 	for _, stat := range coordStats {
+		// Generate geohash with precision 7 (~152m accuracy)
+		hash := geohash.EncodeWithPrecision(stat.Latitude, stat.Longitude, 7)
+
 		trafficByCoordinates.With(prometheus.Labels{
 			"site":         site,
+			"geohash":      hash,
 			"latitude":     fmt.Sprintf("%.4f", stat.Latitude),
 			"longitude":    fmt.Sprintf("%.4f", stat.Longitude),
 			"city":         stat.City,

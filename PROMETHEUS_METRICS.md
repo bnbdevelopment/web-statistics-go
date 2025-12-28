@@ -118,6 +118,7 @@ sum(statistics_active_users_by_country{site="example.com"})
 **Description**: Traffic by geographic coordinates for geomap visualization
 **Labels**:
 - `site` - The domain being tracked
+- `geohash` - Geohash encoded location (precision 7, ~152m accuracy, e.g., "9q8yyk8")
 - `latitude` - Latitude coordinate (formatted to 4 decimal places, e.g., "37.7749")
 - `longitude` - Longitude coordinate (formatted to 4 decimal places, e.g., "-122.4194")
 - `city` - City name (or "Unknown" if not available)
@@ -125,28 +126,41 @@ sum(statistics_active_users_by_country{site="example.com"})
 
 **Example**:
 ```promql
-statistics_traffic_coordinates{site="example.com", latitude="37.7749", longitude="-122.4194", city="San Francisco", country_code="US"}
+statistics_traffic_coordinates{site="example.com", geohash="9q8yyk8", latitude="37.7749", longitude="-122.4194", city="San Francisco", country_code="US"}
 ```
 
 **Use Cases**:
-- **Grafana Geomap Panel**: Visualize traffic on a world map
+- **Grafana Geomap Panel**: Visualize traffic on a world map using geohash
 - Plot user locations geographically
 - Identify geographic clusters of users
+- Efficient spatial queries using geohash prefixes
 
 **Grafana Geomap Setup**:
 1. Add Geomap panel
 2. Use query: `statistics_traffic_coordinates{site="example.com"}`
-3. Configure panel to use `latitude` and `longitude` labels
+3. Configure panel to use `geohash` label (recommended) or `latitude`/`longitude` labels
 4. Size markers by metric value (traffic count)
 
-**Example Query**:
+**Example Queries**:
 ```promql
 # All traffic with coordinates
 statistics_traffic_coordinates{site="example.com"}
 
-# Traffic from specific region (approximate lat/long filter)
+# Traffic from specific region using geohash prefix (San Francisco Bay Area)
+statistics_traffic_coordinates{site="example.com", geohash=~"9q8.*"}
+
+# Traffic from specific region using lat/long (approximate)
 statistics_traffic_coordinates{site="example.com", latitude=~"37.*", longitude=~"-122.*"}
+
+# Filter by geohash for efficient spatial queries
+sum by (geohash) (statistics_traffic_coordinates{site="example.com"})
 ```
+
+**Geohash Benefits**:
+- **Efficient spatial queries**: Filter by geohash prefix to query regions (e.g., `geohash=~"9q.*"` for California)
+- **Reduced cardinality**: Geohash provides natural clustering of nearby locations
+- **Better Grafana performance**: Single label instead of parsing lat/long pairs
+- **Hierarchical zoom**: Different precision levels for different zoom levels
 
 ---
 
@@ -192,6 +206,8 @@ sort_desc(statistics_active_users_by_country)
   - `country_name`: "Unknown"
 
 - **Coordinate Precision**: Latitude and longitude are formatted to 4 decimal places (~11 meter precision) to reduce metric cardinality while maintaining useful geographic granularity.
+
+- **Geohash Precision**: Geohashes are encoded with precision 7, providing ~152 meter accuracy. This balances location accuracy with metric cardinality. Geohash prefix matching enables efficient regional queries (e.g., all of California with `geohash=~"9.*"`).
 
 - **Time Windows**:
   - Last 24 hours: `statistics_traffic`, `statistics_traffic_by_city`, `statistics_traffic_coordinates`
