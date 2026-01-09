@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"statistics/database"
+	"statistics/geolocation"
 	"statistics/prometheus"
 	"statistics/statistics"
 	"statistics/structs"
@@ -29,6 +30,10 @@ func userTraffic(c *gin.Context) {
 		if ip == "" {
 			ip = c.ClientIP()
 		}
+
+		// Perform geolocation lookup
+		geoData, _ := geolocation.Lookup(ip)
+
 		record := structs.WebMetric{
 			SessionId: sessionId,
 			Timestamp: time.Now(),
@@ -36,6 +41,18 @@ func userTraffic(c *gin.Context) {
 			Site:      c.Query("site"),
 			Ip:        ip,
 		}
+
+		// Populate geo fields if lookup succeeded
+		if geoData != nil {
+			record.CountryCode = &geoData.CountryCode
+			record.CountryName = &geoData.CountryName
+			record.City = &geoData.City
+			record.Region = &geoData.Region
+			record.Latitude = &geoData.Latitude
+			record.Longitude = &geoData.Longitude
+		}
+		// If geoData is nil, fields remain nil (graceful degradation)
+
 		err := database.Session.Create(&record).Error
 		if err != nil {
 			log.Println("Error inserting traffic data:", err)
