@@ -16,3 +16,8 @@ type WebMetric struct {
 type QueryResult struct {
 	traffic int `gorm:"column:traffic"`
 }
+
+type ActiveUsers struct {
+	NumberOfUsers int    `gorm:"column:number_of_users"`
+	Page          string `gorm:"size:255"`
+}
