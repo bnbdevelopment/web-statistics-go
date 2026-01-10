@@ -29,3 +29,10 @@ type ActiveUsers struct {
 	NumberOfUsers int    `gorm:"column:number_of_users"`
 	Page          string `gorm:"size:255"`
 }
+
+
+type LocationQueryResult struct{
+	City string `gorm:"size:255"`
+	Latitude float64 `gorm:"type:decimal(10,8)"`
+	Longitude float64 `gorm:"type:decimal(11,8)"`
+}
