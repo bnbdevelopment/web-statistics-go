@@ -1,6 +1,7 @@
 package geolocation
 
 import (
+	"errors"
 	"log"
 	"net"
 	"sync"
@@ -25,8 +26,12 @@ type GeoData struct {
 }
 
 var (
-	service *GeoService
-	once    sync.Once
+	service  *GeoService
+	once     sync.Once
+	localIps = map[string]struct{}{ // Use a map for efficient lookups
+		"127.0.0.1": {},
+		"::1":       {},
+	}
 )
 
 // InitGeoService initializes the global GeoIP reader (call once at startup)
@@ -44,10 +49,25 @@ func InitGeoService(dbPath string) error {
 	return initErr
 }
 
+// ErrServiceNotInitialized is returned when the geolocation service has not been initialized.
+var ErrServiceNotInitialized = errors.New("geolocation service not initialized")
+
+// ErrInvalidIP is returned for invalid IP addresses.
+var ErrInvalidIP = errors.New("invalid IP address")
+
 // Lookup performs IP geolocation lookup
 func Lookup(ipStr string) (*GeoData, error) {
-	if service == nil {
-		return nil, nil // Graceful degradation if service not initialized
+	if _, isLocal := localIps[ipStr]; isLocal {
+		return &GeoData{
+			CountryCode: "00",
+			CountryName: "Localhost",
+			Latitude:    0,
+			Longitude:   0,
+		}, nil
+	}
+
+	if service == nil || service.reader == nil {
+		return nil, ErrServiceNotInitialized
 	}
 
 	service.mu.RLock()
@@ -55,14 +75,14 @@ func Lookup(ipStr string) (*GeoData, error) {
 
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
-		return nil, nil // Invalid IP - graceful degradation
+		return nil, ErrInvalidIP
 	}
 
 	record, err := service.reader.City(ip)
 	if err != nil {
-		// Log but don't fail - graceful degradation
+		// Log the error but also return it, wrapped for context.
 		log.Printf("GeoIP lookup failed for %s: %v", ipStr, err)
-		return nil, nil
+		return nil, err
 	}
 
 	geoData := &GeoData{

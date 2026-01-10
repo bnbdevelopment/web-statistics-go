@@ -63,6 +63,32 @@ func userTraffic(c *gin.Context) {
 	}
 }
 
+func getLocations(c *gin.Context) {
+	from := c.Query("from")
+	to := c.Query("to")
+	page := c.Query("page")
+	var fromTime, toTime time.Time
+	var err error
+	layout := "2006-01-02"
+	if !(from == "" || to == "") {
+		fromTime, err = time.Parse(layout, from)
+		if err != nil {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		toTime, err = time.Parse(layout, to)
+		if err != nil {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+	} else {
+		fromTime = time.Now().Add(-24 * time.Hour)
+		toTime = time.Now()
+	}
+	locations := statistics.GetLocations(fromTime, toTime, page)
+	c.JSON(http.StatusOK, gin.H{"locations": locations})
+}
+
 func traffic(c *gin.Context) {
 	from := c.Query("from")
 	to := c.Query("to")
@@ -143,6 +169,8 @@ func Server() {
 	router.POST(prefix+"/time", statistics.GetTimeOnTheSite)
 
 	router.POST(prefix+"/get-sites", getSites)
+
+	router.POST(prefix+"/get-locations", getLocations)
 
 	// Health check endpoint
 	router.GET(prefix+"/health", func(c *gin.Context) {
