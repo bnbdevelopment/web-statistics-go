@@ -151,7 +151,7 @@ func Server() {
 	p.Use(router)
 
 	if port == "" {
-		port = "8080"
+		port = "3001"
 	}
 
 	router.Use(CORSMiddleware())
