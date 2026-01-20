@@ -1,187 +1,136 @@
-package server
+"use client";
 
-import (
-	"log"
-	"net/http"
-	"os"
-	"statistics/database"
-	"statistics/geolocation"
-	"statistics/prometheus"
-	"statistics/statistics"
-	"statistics/structs"
-	"time"
+import React, { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import "leaflet/dist/leaflet.css";
+import type * as Leaflet from "leaflet";
 
-	gpmiddleware "github.com/carousell/gin-prometheus-middleware"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-)
-
-func userTraffic(c *gin.Context) {
-	sessionId := c.Query("sessionId")
-	if sessionId == "" {
-		sessionId = uuid.New().String()
-		c.String(http.StatusOK, sessionId)
-		return
-	} else {
-		ip := c.Request.Header.Get("cf-connecting-ip")
-		if ip == "" {
-			ip = c.Request.Header.Get("X-Forwarded-For")
-		}
-		if ip == "" {
-			ip = c.ClientIP()
-		}
-
-		// Perform geolocation lookup
-		geoData, _ := geolocation.Lookup(ip)
-
-		record := structs.WebMetric{
-			SessionId: sessionId,
-			Timestamp: time.Now(),
-			Page:      c.Query("page"),
-			Site:      c.Query("site"),
-			Ip:        ip,
-		}
-
-		// Populate geo fields if lookup succeeded
-		if geoData != nil {
-			record.CountryCode = &geoData.CountryCode
-			record.CountryName = &geoData.CountryName
-			record.City = &geoData.City
-			record.Region = &geoData.Region
-			record.Latitude = &geoData.Latitude
-			record.Longitude = &geoData.Longitude
-		}
-		// If geoData is nil, fields remain nil (graceful degradation)
-
-		err := database.Session.Create(&record).Error
-		if err != nil {
-			log.Println("Error inserting traffic data:", err)
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-		c.String(http.StatusOK, sessionId)
-	}
+interface LocationData {
+  City: string;
+  Latitude: number;
+  Longitude: number;
+  UserCount: number;
 }
 
-func getLocations(c *gin.Context) {
-	from := c.Query("from")
-	to := c.Query("to")
-	page := c.Query("page")
-	var fromTime, toTime time.Time
-	var err error
-	layout := "2006-01-02"
-	if !(from == "" || to == "") {
-		fromTime, err = time.Parse(layout, from)
-		if err != nil {
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
-		toTime, err = time.Parse(layout, to)
-		if err != nil {
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
-	} else {
-		fromTime = time.Now().Add(-24 * time.Hour)
-		toTime = time.Now()
-	}
-	locations := statistics.GetLocations(fromTime, toTime, page)
-	c.JSON(http.StatusOK, gin.H{"locations": locations})
-}
+const MapContent = dynamic(
+  async () => {
+    const { MapContainer, TileLayer, useMap } =
+      await import("react-leaflet");
 
-func traffic(c *gin.Context) {
-	from := c.Query("from")
-	to := c.Query("to")
-	page := c.Query("page")
-	var fromTime, toTime time.Time
-	var err error
-	layout := "2006-01-02"
-	if !(from == "" || to == "") {
-		fromTime, err = time.Parse(layout, from)
-		if err != nil {
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
-		toTime, err = time.Parse(layout, to)
-		if err != nil {
-			c.AbortWithStatus(http.StatusBadRequest)
-			return
-		}
-	} else {
-		fromTime = time.Now().Add(-24 * time.Hour)
-		toTime = time.Now()
-	}
-	numberOfUsers := statistics.GetUsers(fromTime, toTime, page)
-	c.JSON(http.StatusOK, gin.H{"traffic": numberOfUsers})
-}
+    const L = (await import("leaflet")) as typeof Leaflet;
 
-func getSites(c *gin.Context) {
-	var sites []string
-	err := database.Session.Model(&structs.WebMetric{}).Distinct("site").Pluck("site", &sites).Error
-	if err != nil {
-		log.Println("Error fetching distinct sites:", err)
-		c.AbortWithStatus(http.StatusInternalServerError)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"sites": sites})
-}
+    // ✅ HELYES leaflet.heat import
+    const heatLayer = (await import("leaflet.heat")).default;
 
-func CORSMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, visitorkey")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
+    // 🔧 marker icon fix
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl:
+        "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+      iconUrl:
+        "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+      shadowUrl:
+        "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+    });
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
+    // 🔥 Heatmap layer
+    const HeatmapLayer = ({
+      points,
+    }: {
+      points: [number, number, number][];
+    }) => {
+      const map = useMap();
 
-		c.Next()
-	}
-}
+      useEffect(() => {
+        if (!points.length) return;
 
-func Server() {
-	router := gin.Default()
-	port := os.Getenv("BACKEND_PORT")
-	prefix := os.Getenv("PREFIX")
-	prometheus.RecordMetrics()
-	p := gpmiddleware.NewPrometheus("gin")
-	p.Use(router)
+        const layer = heatLayer(points, {
+          radius: 25,
+          blur: 15,
+          maxZoom: 17,
+        }).addTo(map);
 
-	if port == "" {
-		port = "3001"
-	}
+        return () => {
+          map.removeLayer(layer);
+        };
+      }, [map, points]);
 
-	router.Use(CORSMiddleware())
+      return null;
+    };
 
-	router.GET(prefix+"/put-traffic", userTraffic)
+    const ClientMap = ({
+      locations,
+    }: {
+      locations: LocationData[];
+    }) => {
+      const heatmapPoints = useMemo(() => {
+        if (!locations.length) return [];
 
-	router.POST(prefix+"/traffic", traffic)
+        const maxUsers = Math.max(
+          ...locations.map((l) => l.UserCount),
+          1
+        );
 
-	router.POST(prefix+"/sites", statistics.GetUsersByPages)
+        return locations.map((l) => [
+          l.Latitude,
+          l.Longitude,
+          Math.min(l.UserCount / maxUsers, 1),
+        ] as [number, number, number]);
+      }, [locations]);
 
-	router.POST(prefix+"/graph", statistics.GetTrafficStats)
+      return (
+        <MapContainer
+          center={[47.1625, 19.5033]}
+          zoom={7}
+          style={{ height: "100%", width: "100%" }}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <HeatmapLayer points={heatmapPoints} />
+        </MapContainer>
+      );
+    };
 
-	router.POST(prefix+"/active", statistics.GetActiveUsers)
+    return ClientMap;
+  },
+  {
+    ssr: false,
+    loading: () => <p>Térkép betöltése…</p>,
+  }
+);
 
-	router.POST(prefix+"/time", statistics.GetTimeOnTheSite)
+const MapComponent: React.FC = () => {
+  const [locations, setLocations] = useState<LocationData[]>([]);
 
-	router.POST(prefix+"/get-sites", getSites)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-	router.POST(prefix+"/get-locations", getLocations)
+    const fetchLocations = async () => {
+      try {
+        const res = await fetch("/api/v1/get-locations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
 
-	// Health check endpoint
-	router.GET(prefix+"/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
-	})
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-	log.Println("prefix", prefix)
-	log.Print("Starting server on port " + port)
-	err := router.Run("0.0.0.0:" + port)
-	if (err) == nil {
-		log.Println("Failed to start server", "error", err)
-		panic(err)
-	}
-}
+        const data = await res.json();
+        setLocations(data.locations ?? []);
+      } catch (err) {
+        console.error("Location fetch error:", err);
+      }
+    };
+
+    fetchLocations();
+  }, []);
+
+  return (
+    <div style={{ height: 500, width: "100%" }}>
+      <MapContent locations={locations} />
+    </div>
+  );
+};
+
+export default MapComponent;
