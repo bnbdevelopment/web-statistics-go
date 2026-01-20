@@ -22,6 +22,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import MapComponent from "../Map/Map.component";
+import StatisticsTable from "../StatisticsTable/StatisticsTable.component";
 
 const { RangePicker } = DatePicker;
 const { Title } = Typography;
@@ -239,6 +240,9 @@ export default function Home() {
       </Card>
       <Card title="Látogatók eloszlása" style={{ marginTop: "1rem" }}>
         <MapComponent from={fromDate} to={toDate} site={selectedSite} />
+      </Card>
+      <Card title="Látogatók eloszlása táblázat" style={{ marginTop: "1rem" }}>
+        <StatisticsTable from={fromDate} to={toDate} site={selectedSite} />
       </Card>
     </div>
   );
