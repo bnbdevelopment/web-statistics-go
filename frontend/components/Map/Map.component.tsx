@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
-
 import type * as Leaflet from "leaflet";
 
 interface LocationData {
@@ -18,9 +17,11 @@ const MapContent = dynamic(
     const { MapContainer, TileLayer, useMap } = await import("react-leaflet");
 
     const L = (await import("leaflet")) as typeof Leaflet;
-    await import("leaflet.heat");
 
-    // 🔧 Marker ikon fix (Next.js)
+    // ✅ HELYES leaflet.heat import
+    const heatLayer = (await import("leaflet.heat")).default;
+
+    // 🔧 marker icon fix
     delete (L.Icon.Default.prototype as any)._getIconUrl;
     L.Icon.Default.mergeOptions({
       iconRetinaUrl:
@@ -30,18 +31,7 @@ const MapContent = dynamic(
         "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
     });
 
-    const MapResizeFix = () => {
-      const map = useMap();
-
-      useEffect(() => {
-        setTimeout(() => {
-          map.invalidateSize();
-        }, 0);
-      }, [map]);
-
-      return null;
-    };
-
+    // 🔥 Heatmap layer
     const HeatmapLayer = ({
       points,
     }: {
@@ -52,13 +42,11 @@ const MapContent = dynamic(
       useEffect(() => {
         if (!points.length) return;
 
-        const layer = (L as any)
-          .heatLayer(points, {
-            radius: 25,
-            blur: 15,
-            maxZoom: 17,
-          })
-          .addTo(map);
+        const layer = heatLayer(points, {
+          radius: 25,
+          blur: 15,
+          maxZoom: 17,
+        }).addTo(map);
 
         return () => {
           map.removeLayer(layer);
@@ -90,13 +78,10 @@ const MapContent = dynamic(
           zoom={7}
           style={{ height: "100%", width: "100%" }}
         >
-          <MapResizeFix />
-
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-
           <HeatmapLayer points={heatmapPoints} />
         </MapContainer>
       );
@@ -114,6 +99,8 @@ const MapComponent: React.FC = () => {
   const [locations, setLocations] = useState<LocationData[]>([]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const fetchLocations = async () => {
       try {
         const res = await fetch("/api/v1/get-locations", {
@@ -121,9 +108,7 @@ const MapComponent: React.FC = () => {
           headers: { "Content-Type": "application/json" },
         });
 
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const data = await res.json();
         setLocations(data.locations ?? []);
