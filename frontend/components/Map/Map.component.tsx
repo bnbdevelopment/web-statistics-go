@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
@@ -15,13 +14,11 @@ interface LocationData {
 const MapContent = dynamic(
   async () => {
     const { MapContainer, TileLayer, useMap } = await import("react-leaflet");
-
     const L = (await import("leaflet")) as typeof Leaflet;
 
-    // ✅ HELYES leaflet.heat import
-    const heatLayer = (await import("leaflet.heat")).default;
+    const heatLayerModule = await import("leaflet.heat");
+    const heatLayer = heatLayerModule.default;
 
-    // 🔧 marker icon fix
     delete (L.Icon.Default.prototype as any)._getIconUrl;
     L.Icon.Default.mergeOptions({
       iconRetinaUrl:
@@ -31,7 +28,6 @@ const MapContent = dynamic(
         "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
     });
 
-    // 🔥 Heatmap layer
     const HeatmapLayer = ({
       points,
     }: {
@@ -42,7 +38,7 @@ const MapContent = dynamic(
       useEffect(() => {
         if (!points.length) return;
 
-        const layer = heatLayer(points, {
+        const layer = (heatLayer as any)(points, {
           radius: 25,
           blur: 15,
           maxZoom: 17,
@@ -59,9 +55,7 @@ const MapContent = dynamic(
     const ClientMap = ({ locations }: { locations: LocationData[] }) => {
       const heatmapPoints = useMemo(() => {
         if (!locations.length) return [];
-
         const maxUsers = Math.max(...locations.map((l) => l.UserCount), 1);
-
         return locations.map(
           (l) =>
             [l.Latitude, l.Longitude, Math.min(l.UserCount / maxUsers, 1)] as [
@@ -97,9 +91,14 @@ const MapContent = dynamic(
 
 const MapComponent: React.FC = () => {
   const [locations, setLocations] = useState<LocationData[]>([]);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !mounted) return;
 
     const fetchLocations = async () => {
       try {
@@ -118,7 +117,11 @@ const MapComponent: React.FC = () => {
     };
 
     fetchLocations();
-  }, []);
+  }, [mounted]);
+
+  if (!mounted) {
+    return <p>Térkép betöltése…</p>;
+  }
 
   return (
     <div style={{ height: 500, width: "100%" }}>
