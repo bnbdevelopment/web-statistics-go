@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
 
+import type * as Leaflet from "leaflet";
+
 interface LocationData {
   City: string;
   Latitude: number;
@@ -14,10 +16,11 @@ interface LocationData {
 const MapContent = dynamic(
   async () => {
     const { MapContainer, TileLayer, useMap } = await import("react-leaflet");
-    const L = await import("leaflet");
+
+    const L = (await import("leaflet")) as typeof Leaflet;
     await import("leaflet.heat");
 
-    // 🔧 Leaflet default icon fix – csak egyszer
+    // 🔧 Marker ikon fix (Next.js)
     delete (L.Icon.Default.prototype as any)._getIconUrl;
     L.Icon.Default.mergeOptions({
       iconRetinaUrl:
@@ -26,6 +29,18 @@ const MapContent = dynamic(
       shadowUrl:
         "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
     });
+
+    const MapResizeFix = () => {
+      const map = useMap();
+
+      useEffect(() => {
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 0);
+      }, [map]);
+
+      return null;
+    };
 
     const HeatmapLayer = ({
       points,
@@ -54,32 +69,34 @@ const MapContent = dynamic(
     };
 
     const ClientMap = ({ locations }: { locations: LocationData[] }) => {
-      const heatmapPoints = useMemo(
-        () =>
-          locations.map(
-            (l) =>
-              [l.Latitude, l.Longitude, l.UserCount] as [
-                number,
-                number,
-                number,
-              ],
-          ),
-        [locations],
-      );
+      const heatmapPoints = useMemo(() => {
+        if (!locations.length) return [];
+
+        const maxUsers = Math.max(...locations.map((l) => l.UserCount), 1);
+
+        return locations.map(
+          (l) =>
+            [l.Latitude, l.Longitude, Math.min(l.UserCount / maxUsers, 1)] as [
+              number,
+              number,
+              number,
+            ],
+        );
+      }, [locations]);
 
       return (
         <MapContainer
-          center={[47.1625, 19.5033]} // 🇭🇺 Hungary default
+          center={[47.1625, 19.5033]}
           zoom={7}
           style={{ height: "100%", width: "100%" }}
-          whenReady={(map) => {
-            setTimeout(() => map.target.invalidateSize(), 0);
-          }}
         >
+          <MapResizeFix />
+
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+
           <HeatmapLayer points={heatmapPoints} />
         </MapContainer>
       );
