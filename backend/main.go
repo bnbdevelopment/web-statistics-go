@@ -26,7 +26,6 @@ func main() {
 	if err := geolocation.InitGeoService(geoDBPath); err != nil {
 		log.Printf("WARNING: Failed to initialize GeoIP service: %v", err)
 		log.Println("Continuing without geolocation - geo fields will be null")
-		// Don't panic - graceful degradation
 	}
 	defer geolocation.Close()
 
