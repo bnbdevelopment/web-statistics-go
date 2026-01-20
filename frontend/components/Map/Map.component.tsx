@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
 
@@ -12,73 +12,85 @@ interface LocationData {
 }
 
 const MapContent = dynamic(
-  () =>
-    import("react-leaflet").then((mod) => {
-      const { MapContainer, TileLayer, useMap } = mod;
-      const L = require("leaflet");
-      require("leaflet.heat");
+  async () => {
+    const { MapContainer, TileLayer, useMap } = await import("react-leaflet");
+    const L = await import("leaflet");
+    await import("leaflet.heat");
 
-      // Fix for default icon not showing in Leaflet
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl:
-          "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
-        iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-        shadowUrl:
-          "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
-      });
+    // 🔧 Leaflet default icon fix – csak egyszer
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl:
+        "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+      iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+      shadowUrl:
+        "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+    });
 
-      const HeatmapLayer = ({ positions }: { positions: number[][] }) => {
-        const map = useMap();
+    const HeatmapLayer = ({
+      points,
+    }: {
+      points: [number, number, number][];
+    }) => {
+      const map = useMap();
 
-        useEffect(() => {
-          if (!map) return;
+      useEffect(() => {
+        if (!points.length) return;
 
-          const heat = (L.heatLayer as any)(positions, {
-            radius: 20,
+        const layer = (L as any)
+          .heatLayer(points, {
+            radius: 25,
             blur: 15,
             maxZoom: 17,
-          }).addTo(map);
+          })
+          .addTo(map);
 
-          return () => {
-            map.removeLayer(heat);
-          };
-        }, [positions, map]);
+        return () => {
+          map.removeLayer(layer);
+        };
+      }, [map, points]);
 
-        return null;
-      };
+      return null;
+    };
 
-      interface MapProps {
-        locations: LocationData[];
-      }
+    const ClientMap = ({ locations }: { locations: LocationData[] }) => {
+      const heatmapPoints = useMemo(
+        () =>
+          locations.map(
+            (l) =>
+              [l.Latitude, l.Longitude, l.UserCount] as [
+                number,
+                number,
+                number,
+              ],
+          ),
+        [locations],
+      );
 
-      const ClientMap: React.FC<MapProps> = ({ locations }) => {
-        // Prepare data for heatmap
-        const heatmapData = locations.map((loc) => [
-          loc.Latitude,
-          loc.Longitude,
-          loc.UserCount,
-        ]);
+      return (
+        <MapContainer
+          center={[47.1625, 19.5033]} // 🇭🇺 Hungary default
+          zoom={7}
+          style={{ height: "100%", width: "100%" }}
+          whenReady={(map) => {
+            setTimeout(() => map.target.invalidateSize(), 0);
+          }}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <HeatmapLayer points={heatmapPoints} />
+        </MapContainer>
+      );
+    };
 
-        return (
-          <MapContainer
-            center={[0, 0]} // Default center, will adjust based on data or user interaction
-            zoom={2}
-            scrollWheelZoom={false}
-            style={{ height: "100%", width: "100%" }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            {heatmapData.length > 0 && <HeatmapLayer positions={heatmapData} />}
-          </MapContainer>
-        );
-      };
-
-      return ClientMap;
-    }),
-  { ssr: false, loading: () => <p>Loading Map...</p> },
+    return ClientMap;
+  },
+  {
+    ssr: false,
+    loading: () => <p>Térkép betöltése…</p>,
+  },
 );
 
 const MapComponent: React.FC = () => {
@@ -87,17 +99,19 @@ const MapComponent: React.FC = () => {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const response = await fetch("/api/v1/get-locations", {
+        const res = await fetch("/api/v1/get-locations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
         });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
         }
-        const data = await response.json();
-        setLocations(data.locations || []);
-      } catch (error) {
-        console.error("Error fetching location data:", error);
+
+        const data = await res.json();
+        setLocations(data.locations ?? []);
+      } catch (err) {
+        console.error("Location fetch error:", err);
       }
     };
 
@@ -105,7 +119,7 @@ const MapComponent: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ height: "500px", width: "100%" }}>
+    <div style={{ height: 500, width: "100%" }}>
       <MapContent locations={locations} />
     </div>
   );
