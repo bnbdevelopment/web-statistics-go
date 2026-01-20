@@ -15,9 +15,11 @@ const MapContent = dynamic(
   async () => {
     const { MapContainer, TileLayer, useMap } = await import("react-leaflet");
     const L = (await import("leaflet")) as typeof Leaflet;
-
-    const heatLayerModule = await import("leaflet.heat");
-    const heatLayer = heatLayerModule.default;
+    if (typeof window !== "undefined") {
+      if (!L.heatLayer) {
+        await import("leaflet.heat");
+      }
+    }
 
     delete (L.Icon.Default.prototype as any)._getIconUrl;
     L.Icon.Default.mergeOptions({
@@ -38,10 +40,26 @@ const MapContent = dynamic(
       useEffect(() => {
         if (!points.length) return;
 
-        const layer = (heatLayer as any)(points, {
-          radius: 25,
-          blur: 15,
+        const L = (window as any).L;
+        if (!L || !L.heatLayer) {
+          console.error("L.heatLayer is not available");
+          return;
+        }
+
+        const layer = L.heatLayer(points, {
+          radius: 40,
+          blur: 25,
           maxZoom: 17,
+          max: 1.0,
+          minOpacity: 0.5,
+          gradient: {
+            0.0: "blue",
+            0.3: "cyan",
+            0.5: "lime",
+            0.7: "yellow",
+            0.9: "orange",
+            1.0: "red",
+          },
         }).addTo(map);
 
         return () => {
@@ -56,21 +74,25 @@ const MapContent = dynamic(
       const heatmapPoints = useMemo(() => {
         if (!locations.length) return [];
         const maxUsers = Math.max(...locations.map((l) => l.UserCount), 1);
-        return locations.map(
-          (l) =>
-            [l.Latitude, l.Longitude, Math.min(l.UserCount / maxUsers, 1)] as [
-              number,
-              number,
-              number,
-            ],
-        );
+
+        return locations.map((l) => {
+          const normalizedIntensity =
+            Math.log(l.UserCount + 1) / Math.log(maxUsers + 1);
+          const boostedIntensity = Math.min(normalizedIntensity * 1.5, 1); // 50% erősítés
+
+          return [l.Latitude, l.Longitude, boostedIntensity] as [
+            number,
+            number,
+            number,
+          ];
+        });
       }, [locations]);
 
       return (
         <MapContainer
           center={[47.1625, 19.5033]}
           zoom={7}
-          style={{ height: "100%", width: "100%" }}
+          style={{ height: "100%", width: "100%", minHeight: "500px" }}
         >
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
@@ -85,11 +107,32 @@ const MapContent = dynamic(
   },
   {
     ssr: false,
-    loading: () => <p>Térkép betöltése…</p>,
+    loading: () => (
+      <div
+        style={{
+          height: 500,
+          width: "100%",
+          minHeight: 500,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <p>Térkép betöltése…</p>
+      </div>
+    ),
   },
 );
 
-const MapComponent: React.FC = () => {
+const MapComponent = ({
+  from,
+  to,
+  site,
+}: {
+  from: any;
+  to: any;
+  site: string;
+}) => {
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [mounted, setMounted] = useState(false);
 
@@ -102,10 +145,15 @@ const MapComponent: React.FC = () => {
 
     const fetchLocations = async () => {
       try {
-        const res = await fetch("/api/v1/get-locations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
+        const res = await fetch(
+          `/api/v1/get-locations?page=${site}${from ? `&from=${from.toISOString().split("T")[0]}` : ""}${
+            to ? `&to=${to.toISOString().split("T")[0]}` : ""
+          }`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          },
+        );
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -117,14 +165,27 @@ const MapComponent: React.FC = () => {
     };
 
     fetchLocations();
-  }, [mounted]);
+  }, [mounted, from, to, site]);
 
   if (!mounted) {
-    return <p>Térkép betöltése…</p>;
+    return (
+      <div
+        style={{
+          height: 500,
+          width: "100%",
+          minHeight: 500,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <p>Térkép betöltése…</p>
+      </div>
+    );
   }
 
   return (
-    <div style={{ height: 500, width: "100%" }}>
+    <div style={{ height: 500, width: "100%", minHeight: 500, minWidth: 0 }}>
       <MapContent locations={locations} />
     </div>
   );

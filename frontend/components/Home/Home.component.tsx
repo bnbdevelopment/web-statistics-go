@@ -1,10 +1,27 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, Statistic, Select, DatePicker, Row, Col, Typography } from "antd";
-import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie } from "recharts";
-import { useSearchParams } from 'next/navigation'
-import { useRouter } from 'next/navigation';
-import MapComponent from '../Map/Map.component';
+import {
+  Card,
+  Statistic,
+  Select,
+  DatePicker,
+  Row,
+  Col,
+  Typography,
+} from "antd";
+import {
+  AreaChart,
+  Area,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  PieChart,
+  Pie,
+} from "recharts";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import MapComponent from "../Map/Map.component";
 
 const { RangePicker } = DatePicker;
 const { Title } = Typography;
@@ -13,7 +30,9 @@ export default function Home() {
   const [sites, setSites] = useState<string[]>([]);
   const searchParams = useSearchParams();
   const [visitors, setVisitors] = useState(0);
-  const [selectedSite, setSelectedSite] = useState(searchParams.get('site') || '');
+  const [selectedSite, setSelectedSite] = useState(
+    searchParams.get("site") || "",
+  );
   const [visitToChart, setVisitToChart] = useState<
     { interval: number; uniqueSessions: number; totalRequests: number }[]
   >([]);
@@ -21,7 +40,9 @@ export default function Home() {
   const [activeUsers, setActiveUsers] = useState(0);
   const [fromDate, setFromDate] = useState<Date | null>(null);
   const [toDate, setToDate] = useState<Date | null>(null);
-  const [sitesTraffic, setSitesTraffic] = useState<{ page: string; count: number }[]>([]);
+  const [sitesTraffic, setSitesTraffic] = useState<
+    { page: string; count: number }[]
+  >([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -39,8 +60,8 @@ export default function Home() {
     fetch(
       `/api/v1/traffic?page=${selectedSite}${
         fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""
-      }${toDate ? `&to=${toDate.toISOString().split("T")[0]}` : "" }`,
-      { method: "POST", headers: { "Content-Type": "application/json" } }
+      }${toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""}`,
+      { method: "POST", headers: { "Content-Type": "application/json" } },
     )
       .then((response) => response.json())
       .then((data) => setVisitors(data.traffic || 0))
@@ -54,15 +75,15 @@ export default function Home() {
               Math.sqrt(
                 Math.ceil(
                   (toDate?.getTime() - fromDate?.getTime()) /
-                    (1000 * 60 * 60 * 24)
-                ) * 24
-              )
+                    (1000 * 60 * 60 * 24),
+                ) * 24,
+              ),
             )
           : 24
       }${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
         toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""
       }`,
-      { method: "POST", headers: { "Content-Type": "application/json" } }
+      { method: "POST", headers: { "Content-Type": "application/json" } },
     )
       .then((response) => response.json())
       .then((data) => setVisitToChart(data || []))
@@ -75,25 +96,29 @@ export default function Home() {
       .then((response) => response.json())
       .then((data) => setActiveUsers(data.count || 0))
       .catch((error) => console.error("Error fetching stats:", error));
-    
-    
-      fetch(`/api/v1/time?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
+
+    fetch(
+      `/api/v1/time?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
         toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""
-      }`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    })
+      }`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+    )
       .then((response) => response.json())
       .then((data) => setSpentTime(data.avgTimeSpent || 0))
       .catch((error) => console.error("Error fetching stats:", error));
-      
-      
-      fetch(`/api/v1/sites?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
+
+    fetch(
+      `/api/v1/sites?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
         toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""
-      }`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    })
+      }`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+    )
       .then((response) => response.json())
       .then((data) => setSitesTraffic(data || []))
       .catch((error) => console.error("Error fetching stats:", error));
@@ -115,7 +140,12 @@ export default function Home() {
             options={sites
               .filter((site) => site !== "")
               .map((site: string) => ({ value: site, label: site }))}
-            onChange={(value) => {setSelectedSite(value); const params = new URLSearchParams(searchParams.toString()); params.set("site", value);router.replace(`?${params.toString()}`); }}
+            onChange={(value) => {
+              setSelectedSite(value);
+              const params = new URLSearchParams(searchParams.toString());
+              params.set("site", value);
+              router.replace(`?${params.toString()}`);
+            }}
           />
         </Col>
         <Col xs={24} sm={12}>
@@ -138,7 +168,12 @@ export default function Home() {
         </Col>
         <Col xs={24} sm={8}>
           <Card>
-            <Statistic title="Oldalon töltött átlagos idő" value={spentTime} precision={1}  suffix="min" />
+            <Statistic
+              title="Oldalon töltött átlagos idő"
+              value={spentTime}
+              precision={1}
+              suffix="min"
+            />
           </Card>
         </Col>
         <Col xs={24} sm={8}>
@@ -149,17 +184,19 @@ export default function Home() {
       </Row>
 
       {/* Chart */}
-      <Card
-        title="Látogatók"
-        style={{ marginTop: "1rem" }}
-        bodyStyle={{ padding: "0.5rem" }}
-      >
+      <Card title="Látogatók" style={{ marginTop: "1rem" }}>
         {visitToChart && visitToChart.length > 0 && (
           <div style={{ width: "100%", height: 200 }}>
             <ResponsiveContainer>
               <AreaChart data={visitToChart}>
                 <defs>
-                  <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient
+                    id="colorVisitors"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
                     <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
                     <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
                   </linearGradient>
@@ -179,35 +216,29 @@ export default function Home() {
           </div>
         )}
       </Card>
-      <Card
-        title="Oldalak látogatottsága"
-        style={{ marginTop: "1rem" }}
-        bodyStyle={{ padding: "0.5rem" }}
-      >
-      <div style={{ width: "100%", height: 400 }}>
-        <ResponsiveContainer>
-          <PieChart>
-            <Pie
-              label={({ name, percent }:any) => `${name} ${(percent * 100).toFixed(0)}%`}
-              nameKey={"page"}
-              data={sitesTraffic}
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={80}
-              fill="#8884d8"
-              dataKey="count"
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
+      <Card title="Oldalak látogatottsága" style={{ marginTop: "1rem" }}>
+        <div style={{ width: "100%", height: 400 }}>
+          <ResponsiveContainer>
+            <PieChart>
+              <Pie
+                label={({ name, percent }: any) =>
+                  `${name} ${(percent * 100).toFixed(0)}%`
+                }
+                nameKey={"page"}
+                data={sitesTraffic}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="count"
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </Card>
-      <Card
-        title="Látogatók eloszlása"
-        style={{ marginTop: "1rem" }}
-        bodyStyle={{ padding: "0.5rem" }}
-      >
-        <MapComponent />
+      <Card title="Látogatók eloszlása" style={{ marginTop: "1rem" }}>
+        <MapComponent from={fromDate} to={toDate} site={selectedSite} />
       </Card>
     </div>
   );
