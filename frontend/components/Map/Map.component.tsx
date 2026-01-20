@@ -11,16 +11,24 @@ interface LocationData {
   UserCount: number;
 }
 
-// Client-side only component for the HeatmapLayer
-const Heatmap = dynamic(
+const MapContent = dynamic(
   () =>
     import("react-leaflet").then((mod) => {
-      const { useMap } = mod;
+      const { MapContainer, TileLayer, useMap } = mod;
       const L = require("leaflet");
       require("leaflet.heat");
 
-      const HeatmapLayer = (props: any) => {
-        const { positions } = props;
+      // Fix for default icon not showing in Leaflet
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl:
+          "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+        iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+        shadowUrl:
+          "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+      });
+
+      const HeatmapLayer = ({ positions }: { positions: number[][] }) => {
         const map = useMap();
 
         useEffect(() => {
@@ -39,26 +47,44 @@ const Heatmap = dynamic(
 
         return null;
       };
-      return HeatmapLayer;
+
+      interface MapProps {
+        locations: LocationData[];
+      }
+
+      const ClientMap: React.FC<MapProps> = ({ locations }) => {
+        // Prepare data for heatmap
+        const heatmapData = locations.map((loc) => [
+          loc.Latitude,
+          loc.Longitude,
+          loc.UserCount,
+        ]);
+
+        return (
+          <MapContainer
+            center={[0, 0]} // Default center, will adjust based on data or user interaction
+            zoom={2}
+            scrollWheelZoom={false}
+            style={{ height: "100%", width: "100%" }}
+          >
+            <TileLayer
+              attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {heatmapData.length > 0 && <HeatmapLayer positions={heatmapData} />}
+          </MapContainer>
+        );
+      };
+
+      return ClientMap;
     }),
-  { ssr: false },
+  { ssr: false, loading: () => <p>Loading Map...</p> },
 );
 
 const MapComponent: React.FC = () => {
   const [locations, setLocations] = useState<LocationData[]>([]);
 
   useEffect(() => {
-    // Fix for default icon not showing in Leaflet
-    const L = require("leaflet");
-    delete (L.Icon.Default.prototype as any)._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl:
-        "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
-      iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-      shadowUrl:
-        "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
-    });
-
     const fetchLocations = async () => {
       try {
         const response = await fetch("/api/v1/get-locations", {
@@ -78,36 +104,9 @@ const MapComponent: React.FC = () => {
     fetchLocations();
   }, []);
 
-  const MapContainer = dynamic(
-    () => import("react-leaflet").then((mod) => mod.MapContainer),
-    { ssr: false },
-  );
-  const TileLayer = dynamic(
-    () => import("react-leaflet").then((mod) => mod.TileLayer),
-    { ssr: false },
-  );
-
-  // Prepare data for heatmap
-  const heatmapData = locations.map((loc) => [
-    loc.Latitude,
-    loc.Longitude,
-    loc.UserCount,
-  ]);
-
   return (
     <div style={{ height: "500px", width: "100%" }}>
-      <MapContainer
-        center={[0, 0]} // Default center, will adjust based on data or user interaction
-        zoom={2}
-        scrollWheelZoom={false}
-        style={{ height: "100%", width: "100%" }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {heatmapData.length > 0 && <Heatmap positions={heatmapData} />}
-      </MapContainer>
+      <MapContent locations={locations} />
     </div>
   );
 };
