@@ -28,10 +28,10 @@ func GetUsers(t1 time.Time, t2 time.Time, site string) int {
 func GetLocations(t1 time.Time, t2 time.Time, site string) []structs.LocationQueryResult {
 	var results []structs.LocationQueryResult
 	if site == "" {
-		query := `SELECT city, latitude, longitude FROM "web_metrics" WHERE "timestamp" >= ? AND "timestamp" <= ? GROUP BY city, latitude, longitude`
+		query := `SELECT city, latitude, longitude, COUNT(DISTINCT session_id) as user_count FROM "web_metrics" WHERE "timestamp" >= ? AND "timestamp" <= ? AND city != '' GROUP BY city, latitude, longitude`
 		database.Session.Raw(query, t1, t2).Scan(&results)
 	} else {
-		query := `SELECT city, latitude, longitude FROM "web_metrics" WHERE "timestamp" >= ? AND "timestamp" <= ? AND site = ? GROUP BY city, latitude, longitude`
+		query := `SELECT city, latitude, longitude, COUNT(DISTINCT session_id) as user_count FROM "web_metrics" WHERE "timestamp" >= ? AND "timestamp" <= ? AND site = ? AND city != '' GROUP BY city, latitude, longitude`
 		database.Session.Raw(query, t1, t2, site).Scan(&results)
 	}
 	return results

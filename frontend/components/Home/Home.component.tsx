@@ -4,7 +4,7 @@ import { Card, Statistic, Select, DatePicker, Row, Col, Typography } from "antd"
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie } from "recharts";
 import { useSearchParams } from 'next/navigation'
 import { useRouter } from 'next/navigation';
-
+import MapComponent from '../Map/Map.component';
 
 const { RangePicker } = DatePicker;
 const { Title } = Typography;
@@ -201,6 +201,13 @@ export default function Home() {
           </PieChart>
         </ResponsiveContainer>
       </div>
+      </Card>
+      <Card
+        title="Látogatók eloszlása"
+        style={{ marginTop: "1rem" }}
+        bodyStyle={{ padding: "0.5rem" }}
+      >
+        <MapComponent />
       </Card>
     </div>
   );

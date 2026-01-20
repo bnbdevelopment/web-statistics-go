@@ -35,4 +35,5 @@ type LocationQueryResult struct{
 	City string `gorm:"size:255"`
 	Latitude float64 `gorm:"type:decimal(10,8)"`
 	Longitude float64 `gorm:"type:decimal(11,8)"`
+	UserCount int `gorm:"column:user_count"`
 }
