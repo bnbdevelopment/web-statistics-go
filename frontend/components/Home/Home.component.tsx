@@ -1,14 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import {
-  Card,
-  Statistic,
-  Row,
-  Col,
-  Layout,
-  Divider,
-  Typography,
-} from "antd";
+import { Card, Statistic, Row, Col, Layout, Divider, Typography } from "antd";
 import {
   AreaChart,
   Area,
@@ -21,16 +13,13 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useSearchParams } from "next/navigation";
-import {
-  ArrowDownOutlined,
-  ArrowUpOutlined,
-} from "@ant-design/icons";
+import { ArrowDownOutlined, ArrowUpOutlined } from "@ant-design/icons";
 import MapComponent from "../Map/Map.component";
 import StatisticsTable from "../StatisticsTable/StatisticsTable.component";
 import Header from "../Header/Header.component";
 import Footer from "../Footer/Footer.component";
 import CohortAnalysis from "../CohortAnalysis/CohortAnalysis.component";
-import UserJourney from "../UserJourney/UserJourney.component";
+import AverageJourney from "../AverageJourney/AverageJourney.component";
 const { Content } = Layout;
 const { Title } = Typography;
 
@@ -84,7 +73,9 @@ export default function Home() {
   }, [selectedSite]);
 
   useEffect(() => {
-    const from = fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : "";
+    const from = fromDate
+      ? `&from=${fromDate.toISOString().split("T")[0]}`
+      : "";
     const to = toDate ? `&to=${toDate.toISOString().split("T")[0]}` : "";
 
     let fromYesterday = "";
@@ -113,10 +104,13 @@ export default function Home() {
       .then((data) => setVisitors(data.traffic || 0))
       .catch((error) => console.error("Error fetching stats:", error));
 
-    fetch(`/api/v1/traffic?page=${selectedSite}${fromYesterday}${toYesterday}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    })
+    fetch(
+      `/api/v1/traffic?page=${selectedSite}${fromYesterday}${toYesterday}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+    )
       .then((response) => response.json())
       .then((data) => setVisitorsYesterday(data.traffic || 0))
       .catch((error) => console.error("Error fetching stats:", error));
@@ -195,7 +189,7 @@ export default function Home() {
         onSiteChange={setSelectedSite}
         onDateChange={([from, to]) => {
           setFromDate(from);
-setToDate(to);
+          setToDate(to);
         }}
       />
       <Layout>
@@ -256,9 +250,7 @@ setToDate(to);
                       value={visitors}
                       valueStyle={{
                         color:
-                          visitors > visitorsYesterday
-                            ? "#3f8600"
-                            : "#cf1322",
+                          visitors > visitorsYesterday ? "#3f8600" : "#cf1322",
                       }}
                       prefix={
                         visitors > visitorsYesterday ? (
@@ -326,7 +318,10 @@ setToDate(to);
                 </Col>
                 <Col xs={24}>
                   <Card style={{ height: "100%" }}>
-                    <Statistic title="Aktív látogatók (fő)" value={activeUsers} />
+                    <Statistic
+                      title="Aktív látogatók (fő)"
+                      value={activeUsers}
+                    />
                   </Card>
                 </Col>
                 <Col xs={24}>
@@ -456,14 +451,17 @@ setToDate(to);
               </Card>
             </Col>
           </Row>
-
           <Row gutter={[24, 24]} style={{ marginTop: "24px" }}>
             <Col xs={24}>
               <Card
-                title="Felhasználói útvonal elemzés"
+                title="Átlagos felhasználói útvonal elemzés (Sankey diagram)"
                 style={{ height: "100%" }}
               >
-                <UserJourney />
+                <AverageJourney
+                  site={selectedSite}
+                  from={fromDate}
+                  to={toDate}
+                />
               </Card>
             </Col>
           </Row>

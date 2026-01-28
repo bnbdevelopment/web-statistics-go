@@ -1,4 +1,6 @@
 // app/layout.tsx
+import React from "react";
+import { AntdRegistry } from "@ant-design/nextjs-registry";
 import "antd/dist/reset.css";
 import "./globals.css";
 import type { Metadata } from "next";
@@ -18,7 +20,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="hu" suppressHydrationWarning>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        <AntdRegistry>{children}</AntdRegistry>
+      </body>
     </html>
   );
 }
