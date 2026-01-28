@@ -68,6 +68,18 @@ type CohortData struct {
 
 	TotalUsers    int       `json:"total_users"`
 
-	RetentionData []float64 `json:"retention_data"`
+		RetentionData []float64 `json:"retention_data"`
 
-}
+	}
+
+	
+
+	type UserJourneyEntry struct {
+
+		Page      string    `json:"page"`
+
+		Timestamp time.Time `json:"timestamp"`
+
+	}
+
+	

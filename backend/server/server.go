@@ -214,6 +214,25 @@ func getCohortData(c *gin.Context) {
 	c.JSON(http.StatusOK, cohortData)
 }
 
+func getUserJourney(c *gin.Context) {
+	var requestBody struct {
+		SessionId string `json:"sessionId"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if requestBody.SessionId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "sessionId is required"})
+		return
+	}
+
+	journeyData := statistics.GetUserJourney(requestBody.SessionId)
+	c.JSON(http.StatusOK, journeyData)
+}
+
 func getBounceRate(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
@@ -280,6 +299,8 @@ func Server() {
 	router.GET(prefix+"/bounce-rate", getBounceRate)
 
 	router.POST(prefix+"/cohort", getCohortData)
+
+	router.POST(prefix+"/user-journey", getUserJourney)
 
 	// Health check endpoint
 	router.GET(prefix+"/health", func(c *gin.Context) {
