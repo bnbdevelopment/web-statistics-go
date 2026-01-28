@@ -233,6 +233,36 @@ func getUserJourney(c *gin.Context) {
 	c.JSON(http.StatusOK, journeyData)
 }
 
+func getAverageJourney(c *gin.Context) {
+	startStr := c.Query("from")
+	endStr := c.Query("to")
+	site := c.Query("site")
+	layout := "2006-01-02"
+
+	end := time.Now()
+	if endStr != "" {
+		t, err := time.Parse(layout, endStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
+			return
+		}
+		end = t
+	}
+
+	start := end.Add(-24 * time.Hour) // Default to last 24 hours
+	if startStr != "" {
+		t, err := time.Parse(layout, startStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
+			return
+		}
+		start = t
+	}
+
+	sankeyData := statistics.GetAverageJourney(start, end, site)
+	c.JSON(http.StatusOK, sankeyData)
+}
+
 func getBounceRate(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
@@ -301,6 +331,8 @@ func Server() {
 	router.POST(prefix+"/cohort", getCohortData)
 
 	router.POST(prefix+"/user-journey", getUserJourney)
+
+	router.POST(prefix+"/average-journey", getAverageJourney)
 
 	// Health check endpoint
 	router.GET(prefix+"/health", func(c *gin.Context) {

@@ -510,3 +510,67 @@ func GetUserJourney(sessionId string) []structs.UserJourneyEntry {
 
 	return journey
 }
+
+func GetAverageJourney(start, end time.Time, site string) structs.SankeyData {
+	var flows []structs.FlowResult
+
+	query := `
+        WITH page_flows AS (
+            SELECT
+                page AS source_page,
+                LEAD(page, 1) OVER (PARTITION BY session_id ORDER BY timestamp) AS target_page
+            FROM
+                web_metrics
+            WHERE
+                timestamp >= ? AND timestamp <= ?
+                AND site LIKE ?
+        )
+        SELECT
+            source_page,
+            target_page,
+            COUNT(*) AS flow_count
+        FROM
+            page_flows
+        WHERE
+            target_page IS NOT NULL AND source_page != target_page
+        GROUP BY
+            source_page,
+            target_page
+        ORDER BY
+            flow_count DESC
+    `
+	if site == "" {
+		site = "%"
+	}
+
+	database.Session.Raw(query, start, end, site).Scan(&flows)
+
+	// Process flows into Sankey data
+	nodeMap := make(map[string]int)
+	var nodes []structs.SankeyNode
+	var links []structs.SankeyLink
+
+	// Helper to add a node if it doesn't exist
+	addNode := func(pageName string) {
+		if _, exists := nodeMap[pageName]; !exists {
+			nodeMap[pageName] = len(nodes)
+			nodes = append(nodes, structs.SankeyNode{Name: pageName})
+		}
+	}
+
+	for _, flow := range flows {
+		addNode(flow.SourcePage)
+		addNode(flow.TargetPage)
+
+		links = append(links, structs.SankeyLink{
+			Source: nodeMap[flow.SourcePage],
+			Target: nodeMap[flow.TargetPage],
+			Value:  flow.FlowCount,
+		})
+	}
+
+	return structs.SankeyData{
+		Nodes: nodes,
+		Links: links,
+	}
+}

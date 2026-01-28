@@ -78,8 +78,52 @@ type CohortData struct {
 
 		Page      string    `json:"page"`
 
-		Timestamp time.Time `json:"timestamp"`
+			Timestamp time.Time `json:"timestamp"`
 
-	}
+		}
+
+		
+
+		type FlowResult struct {
+
+			SourcePage string `json:"source_page"`
+
+			TargetPage string `json:"target_page"`
+
+			FlowCount  int    `json:"flow_count"`
+
+		}
+
+		
+
+		type SankeyNode struct {
+
+			Name string `json:"name"`
+
+		}
+
+		
+
+		type SankeyLink struct {
+
+			Source int `json:"source"`
+
+			Target int `json:"target"`
+
+			Value  int `json:"value"`
+
+		}
+
+		
+
+		type SankeyData struct {
+
+			Nodes []SankeyNode `json:"nodes"`
+
+			Links []SankeyLink `json:"links"`
+
+		}
+
+		
 
 	
