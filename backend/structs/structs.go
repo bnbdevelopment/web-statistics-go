@@ -41,3 +41,7 @@ type LocationQueryResult struct{
 type BounceRateResponse struct {
 	BounceRate float64 `json:"bounceRate"`
 }
+
+type AvgTimeResponse struct {
+	AvgTimeSpent float64 `json:"avgTimeSpent"`
+}
