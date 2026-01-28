@@ -24,7 +24,6 @@ import { useSearchParams } from "next/navigation";
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
-  InfoCircleOutlined,
 } from "@ant-design/icons";
 import MapComponent from "../Map/Map.component";
 import StatisticsTable from "../StatisticsTable/StatisticsTable.component";
