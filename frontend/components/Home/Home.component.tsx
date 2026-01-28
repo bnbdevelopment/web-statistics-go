@@ -30,6 +30,7 @@ import StatisticsTable from "../StatisticsTable/StatisticsTable.component";
 import Header from "../Header/Header.component";
 import Footer from "../Footer/Footer.component";
 import CohortAnalysis from "../CohortAnalysis/CohortAnalysis.component";
+import UserJourney from "../UserJourney/UserJourney.component";
 const { Content } = Layout;
 const { Title } = Typography;
 
@@ -452,6 +453,17 @@ setToDate(to);
                   from={fromDate}
                   to={toDate}
                 />
+              </Card>
+            </Col>
+          </Row>
+
+          <Row gutter={[24, 24]} style={{ marginTop: "24px" }}>
+            <Col xs={24}>
+              <Card
+                title="Felhasználói útvonal elemzés"
+                style={{ height: "100%" }}
+              >
+                <UserJourney />
               </Card>
             </Col>
           </Row>

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Input, Button, Timeline, Spin, Alert, Empty } from "antd";
+import { Input, Timeline, Spin, Alert, Empty } from "antd";
 
 interface JourneyEntry {
   page: string;
