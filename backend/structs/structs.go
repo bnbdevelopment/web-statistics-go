@@ -43,5 +43,31 @@ type BounceRateResponse struct {
 }
 
 type AvgTimeResponse struct {
+
 	AvgTimeSpent float64 `json:"avgTimeSpent"`
+
+}
+
+
+
+type CohortRow struct {
+
+	CohortWeek time.Time `json:"cohort_week"`
+
+	WeekNumber int       `json:"week_number"`
+
+	UserCount  int       `json:"user_count"`
+
+}
+
+
+
+type CohortData struct {
+
+	CohortDate    string    `json:"cohort_date"`
+
+	TotalUsers    int       `json:"total_users"`
+
+	RetentionData []float64 `json:"retention_data"`
+
 }

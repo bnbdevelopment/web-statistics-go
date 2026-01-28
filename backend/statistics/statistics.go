@@ -400,3 +400,94 @@ func GetBounceRate(start, end time.Time, site string) float64 {
 
 	return float64(bouncedSessions) / float64(totalSessions) * 100.0
 }
+
+func GetCohortData(start, end time.Time, site string, numberOfWeeks int) []structs.CohortData {
+	var results []structs.CohortRow
+
+	query := `
+        WITH user_first_visit AS (
+            SELECT
+                session_id,
+                DATE_TRUNC('week', MIN(timestamp)) AS cohort_week
+            FROM
+                web_metrics
+            WHERE
+                site LIKE ? AND timestamp >= ? AND timestamp <= ?
+            GROUP BY
+                session_id
+        ),
+        weekly_activity AS (
+            SELECT DISTINCT
+                session_id,
+                DATE_TRUNC('week', timestamp) AS activity_week
+            FROM
+                web_metrics
+            WHERE
+                site LIKE ? AND timestamp >= ? AND timestamp <= ?
+        ),
+        cohort_activity AS (
+            SELECT
+                ufv.cohort_week,
+                TRUNC(EXTRACT(EPOCH FROM (wa.activity_week - ufv.cohort_week)) / (7 * 24 * 60 * 60)) AS week_number,
+                COUNT(DISTINCT ufv.session_id) as user_count
+            FROM
+                user_first_visit ufv
+            JOIN
+                weekly_activity wa ON ufv.session_id = wa.session_id
+            GROUP BY
+                ufv.cohort_week,
+                week_number
+        )
+        SELECT
+            cohort_week,
+            week_number,
+            user_count
+        FROM
+            cohort_activity
+        ORDER BY
+            cohort_week DESC, week_number ASC
+    `
+
+	if site == "" {
+		site = "%"
+	}
+
+	if err := database.Session.Raw(query, site, start, end, site, start, end).Scan(&results).Error; err != nil {
+		// Handle error
+		return nil
+	}
+
+	// Process the raw results into the final format
+	cohortMap := make(map[time.Time]map[int]int)
+	for _, row := range results {
+		if _, ok := cohortMap[row.CohortWeek]; !ok {
+			cohortMap[row.CohortWeek] = make(map[int]int)
+		}
+		cohortMap[row.CohortWeek][row.WeekNumber] = row.UserCount
+	}
+
+	var cohortData []structs.CohortData
+	for cohortWeek, weekData := range cohortMap {
+		totalUsers := weekData[0]
+		if totalUsers == 0 {
+			continue
+		}
+
+		retentionData := make([]float64, numberOfWeeks)
+		for i := 0; i < numberOfWeeks; i++ {
+			if users, ok := weekData[i]; ok {
+				retentionData[i] = (float64(users) / float64(totalUsers)) * 100.0
+			} else {
+				retentionData[i] = 0.0
+			}
+		}
+
+		cohortData = append(cohortData, structs.CohortData{
+			CohortDate:    cohortWeek.Format("2006-01-02"),
+			TotalUsers:    totalUsers,
+			RetentionData: retentionData,
+		})
+	}
+
+	return cohortData
+}

@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"statistics/database"
 	"statistics/geolocation"
 	"statistics/prometheus"
@@ -175,6 +176,44 @@ func GetTimeOnTheSite(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func getCohortData(c *gin.Context) {
+	startStr := c.Query("from")
+	endStr := c.Query("to")
+	site := c.Query("site")
+	weeksStr := c.DefaultQuery("weeks", "12") // Default to 12 weeks
+	layout := "2006-01-02"
+
+	weeks, err := strconv.Atoi(weeksStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid weeks format"})
+		return
+	}
+
+	end := time.Now()
+	if endStr != "" {
+		t, err := time.Parse(layout, endStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
+			return
+		}
+		end = t
+	}
+
+	start := end.AddDate(0, 0, -7*weeks) // Default start date based on number of weeks
+	if startStr != "" {
+		t, err := time.Parse(layout, startStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
+			return
+		}
+		start = t
+	}
+
+	cohortData := statistics.GetCohortData(start, end, site, weeks)
+
+	c.JSON(http.StatusOK, cohortData)
+}
+
 func getBounceRate(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
@@ -239,6 +278,8 @@ func Server() {
 	router.POST(prefix+"/get-locations", getLocations)
 
 	router.GET(prefix+"/bounce-rate", getBounceRate)
+
+	router.POST(prefix+"/cohort", getCohortData)
 
 	// Health check endpoint
 	router.GET(prefix+"/health", func(c *gin.Context) {
