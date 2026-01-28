@@ -8,6 +8,7 @@ import {
   Segmented,
   Empty,
 } from "antd";
+import type { TableProps } from "antd";
 import {
   LineChart,
   Line,
@@ -96,7 +97,7 @@ const CohortAnalysis = ({
 
 
   const renderTableView = () => {
-    const columns = [
+    const columns: TableProps<CohortData>["columns"] = [
       {
         title: "Kohorsz",
         dataIndex: "cohort_date",
@@ -214,7 +215,7 @@ const CohortAnalysis = ({
               <b>Táblázat nézet:</b> Minden sor egy-egy kohorszot jelöl,
               melyek az első látogatásuk hete alapján csoportosított
               felhasználók. Az oszlopok a kohorsz hetétől eltelt heteket mutatják
-              (pl. 'Hét 0' az első látogatás hete, 'Hét 1' az azt követő hét,
+              (pl. &apos;Hét 0&apos; az első látogatás hete, &apos;Hét 1&apos; az azt követő hét,
               stb.). A cellákban az látható, hogy az adott kohorszba tartozó
               felhasználók hány százaléka tért vissza az adott, első látogatásukat
               követő héten. A sötétebb szín magasabb megtartást jelez.
