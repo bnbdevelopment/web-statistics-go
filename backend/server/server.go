@@ -142,6 +142,72 @@ func CORSMiddleware() gin.HandlerFunc {
 	}
 }
 
+func GetTimeOnTheSite(c *gin.Context) {
+	startStr := c.Query("from")
+	endStr := c.Query("to")
+	page := c.Query("page")
+	layout := "2006-01-02"
+
+	end := time.Now()
+	if endStr != "" {
+		t, err := time.Parse(layout, endStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
+			return
+		}
+		end = t
+	}
+
+	start := end.Add(-24 * time.Hour)
+	if startStr != "" {
+		t, err := time.Parse(layout, startStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
+			return
+		}
+		start = t
+	}
+
+	result := statistics.TimeOnSite(page, start, end)
+
+	response := structs.AvgTimeResponse{AvgTimeSpent: result}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func getBounceRate(c *gin.Context) {
+	startStr := c.Query("from")
+	endStr := c.Query("to")
+	site := c.Query("site")
+	layout := "2006-01-02"
+
+	end := time.Now()
+	if endStr != "" {
+		t, err := time.Parse(layout, endStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
+			return
+		}
+		end = t
+	}
+
+	start := end.Add(-24 * time.Hour)
+	if startStr != "" {
+		t, err := time.Parse(layout, startStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
+			return
+		}
+		start = t
+	}
+
+	bounceRate := statistics.GetBounceRate(start, end, site)
+
+	response := structs.BounceRateResponse{BounceRate: bounceRate}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func Server() {
 	router := gin.Default()
 	port := os.Getenv("BACKEND_PORT")
@@ -171,6 +237,8 @@ func Server() {
 	router.POST(prefix+"/get-sites", getSites)
 
 	router.POST(prefix+"/get-locations", getLocations)
+
+	router.GET(prefix+"/bounce-rate", getBounceRate)
 
 	// Health check endpoint
 	router.GET(prefix+"/health", func(c *gin.Context) {

@@ -358,3 +358,45 @@ func GetTimeOnTheSite(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+func GetBounceRate(start, end time.Time, site string) float64 {
+	var totalSessions int64
+	var bouncedSessions int64
+
+	// Query for total sessions within the time range and optionally filtered by site
+	dbQuery := database.Session.
+		Model(&structs.WebMetric{}).
+		Where("timestamp >= ? AND timestamp <= ?", start, end)
+
+	if site != "" {
+		dbQuery = dbQuery.Where("site = ?", site)
+	}
+
+	dbQuery.Distinct("session_id").Count(&totalSessions)
+
+	// Query for bounced sessions (sessions with only one page view)
+	// Subquery to count entries per session_id within the time range and site filter
+	subQuery := database.Session.
+		Select("session_id").
+		Table("web_metrics").
+		Where("timestamp >= ? AND timestamp <= ?", start, end)
+
+	if site != "" {
+		subQuery = subQuery.Where("site = ?", site)
+	}
+
+	subQuery.
+		Group("session_id").
+		Having("COUNT(*) = 1")
+
+	// Main query to count how many distinct session_ids from the subquery exist
+	database.Session.
+		Table("(?) as bounced", subQuery).
+		Count(&bouncedSessions)
+
+	if totalSessions == 0 {
+		return 0.0
+	}
+
+	return float64(bouncedSessions) / float64(totalSessions) * 100.0
+}

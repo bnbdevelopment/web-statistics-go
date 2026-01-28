@@ -37,3 +37,7 @@ type LocationQueryResult struct{
 	Longitude float64 `gorm:"type:decimal(11,8)"`
 	UserCount int `gorm:"column:user_count"`
 }
+
+type BounceRateResponse struct {
+	BounceRate float64 `json:"bounceRate"`
+}

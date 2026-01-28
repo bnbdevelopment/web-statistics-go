@@ -21,6 +21,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useSearchParams } from "next/navigation";
+import { ArrowDownOutlined, ArrowUpOutlined } from "@ant-design/icons";
 import MapComponent from "../Map/Map.component";
 import StatisticsTable from "../StatisticsTable/StatisticsTable.component";
 import Header from "../Header/Header.component";
@@ -29,10 +30,10 @@ const { Content } = Layout;
 const { Title } = Typography;
 
 export default function Home() {
-
   const [sites, setSites] = useState<string[]>([]);
   const searchParams = useSearchParams();
   const [visitors, setVisitors] = useState(0);
+  const [visitorsYesterday, setVisitorsYesterday] = useState(0);
   const [selectedSite, setSelectedSite] = useState(
     searchParams.get("site") || "",
   );
@@ -40,6 +41,7 @@ export default function Home() {
     { interval: number; uniqueSessions: number; totalRequests: number }[]
   >([]);
   const [spentTime, setSpentTime] = useState(0);
+  const [spentTimeYesterday, setSpentTimeYesterday] = useState(0);
   const [activeUsers, setActiveUsers] = useState(0);
   const [fromDate, setFromDate] = useState<Date | null>(null);
   const [toDate, setToDate] = useState<Date | null>(null);
@@ -75,15 +77,41 @@ export default function Home() {
   }, [selectedSite]);
 
   useEffect(() => {
+    const from = fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : "";
+    const to = toDate ? `&to=${toDate.toISOString().split("T")[0]}` : "";
+
+    let fromYesterday = "";
+    let toYesterday = "";
+
+    if (fromDate && toDate) {
+      const diff = toDate.getTime() - fromDate.getTime();
+      const prevFromDate = new Date(fromDate.getTime() - diff);
+      const prevToDate = fromDate;
+      fromYesterday = `&from=${prevFromDate.toISOString().split("T")[0]}`;
+      toYesterday = `&to=${prevToDate.toISOString().split("T")[0]}`;
+    } else {
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+      fromYesterday = `&from=${twoDaysAgo.toISOString().split("T")[0]}`;
+      toYesterday = `&to=${yesterday.toISOString().split("T")[0]}`;
+    }
+
     // visitors
-    fetch(
-      `/api/v1/traffic?page=${selectedSite}${
-        fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""
-      }${toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""}`,
-      { method: "POST", headers: { "Content-Type": "application/json" } },
-    )
+    fetch(`/api/v1/traffic?page=${selectedSite}${from}${to}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
       .then((response) => response.json())
       .then((data) => setVisitors(data.traffic || 0))
+      .catch((error) => console.error("Error fetching stats:", error));
+
+    fetch(`/api/v1/traffic?page=${selectedSite}${fromYesterday}${toYesterday}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
+      .then((response) => response.json())
+      .then((data) => setVisitorsYesterday(data.traffic || 0))
       .catch((error) => console.error("Error fetching stats:", error));
 
     // chart
@@ -99,37 +127,33 @@ export default function Home() {
               ),
             )
           : 24
-      }${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
-        toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""
-      }`,
+      }${from}${to}`,
       { method: "POST", headers: { "Content-Type": "application/json" } },
     )
       .then((response) => response.json())
       .then((data) => setVisitToChart(data || []))
       .catch((error) => console.error("Error fetching stats:", error));
 
-    fetch(
-      `/api/v1/time?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
-        toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""
-      }`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      },
-    )
+    fetch(`/api/v1/time?page=${selectedSite}${from}${to}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
       .then((response) => response.json())
       .then((data) => setSpentTime(data.avgTimeSpent || 0))
       .catch((error) => console.error("Error fetching stats:", error));
 
-    fetch(
-      `/api/v1/sites?page=${selectedSite}${fromDate ? `&from=${fromDate.toISOString().split("T")[0]}` : ""}${
-        toDate ? `&to=${toDate.toISOString().split("T")[0]}` : ""
-      }`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      },
-    )
+    fetch(`/api/v1/time?page=${selectedSite}${fromYesterday}${toYesterday}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
+      .then((response) => response.json())
+      .then((data) => setSpentTimeYesterday(data.avgTimeSpent || 0))
+      .catch((error) => console.error("Error fetching stats:", error));
+
+    fetch(`/api/v1/sites?page=${selectedSite}${from}${to}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
       .then((response) => response.json())
       .then((data) => setSitesTraffic(data || []))
       .catch((error) => console.error("Error fetching stats:", error));
@@ -143,7 +167,7 @@ export default function Home() {
         onSiteChange={setSelectedSite}
         onDateChange={([from, to]) => {
           setFromDate(from);
-          setToDate(to);
+setToDate(to);
         }}
       />
       <Layout>
@@ -199,7 +223,39 @@ export default function Home() {
               <Row gutter={[24, 24]}>
                 <Col xs={24}>
                   <Card style={{ height: "100%" }}>
-                    <Statistic title="Látogatók száma" value={visitors} />
+                    <Statistic
+                      title="Látogatók száma"
+                      value={visitors}
+                      valueStyle={{
+                        color:
+                          visitors > visitorsYesterday
+                            ? "#3f8600"
+                            : "#cf1322",
+                      }}
+                      prefix={
+                        visitors > visitorsYesterday ? (
+                          <ArrowUpOutlined />
+                        ) : (
+                          <ArrowDownOutlined />
+                        )
+                      }
+                      suffix={
+                        <span style={{ fontSize: "14px", marginLeft: "8px" }}>
+                          {visitorsYesterday === 0 && visitors === 0
+                            ? "0.00%"
+                            : visitorsYesterday === 0
+                              ? "100.00%"
+                              : `${(
+                                  ((visitors - visitorsYesterday) /
+                                    visitorsYesterday) *
+                                  100
+                                ).toFixed(2)}%`}
+                        </span>
+                      }
+                    />
+                    <Typography.Text type="secondary">
+                      a 24 órával ezelőttihez képest
+                    </Typography.Text>
                   </Card>
                 </Col>
                 <Col xs={24}>
@@ -208,8 +264,36 @@ export default function Home() {
                       title="Oldalon töltött átlagos idő"
                       value={spentTime}
                       precision={1}
-                      suffix="min"
+                      suffix={
+                        <span style={{ fontSize: "14px", marginLeft: "8px" }}>
+                          {spentTimeYesterday === 0 && spentTime === 0
+                            ? "0.00%"
+                            : spentTimeYesterday === 0
+                              ? "100.00%"
+                              : `${(
+                                  ((spentTime - spentTimeYesterday) /
+                                    spentTimeYesterday) *
+                                  100
+                                ).toFixed(2)}%`}
+                        </span>
+                      }
+                      valueStyle={{
+                        color:
+                          spentTime > spentTimeYesterday
+                            ? "#3f8600"
+                            : "#cf1322",
+                      }}
+                      prefix={
+                        spentTime > spentTimeYesterday ? (
+                          <ArrowUpOutlined />
+                        ) : (
+                          <ArrowDownOutlined />
+                        )
+                      }
                     />
+                    <Typography.Text type="secondary">
+                      a 24 órával ezelőttihez képest
+                    </Typography.Text>
                   </Card>
                 </Col>
                 <Col xs={24}>
@@ -233,7 +317,10 @@ export default function Home() {
               </Card>
             </Col>
             <Col xs={24} lg={8}>
-              <Card title="Top 5 leglátogatottabb oldal" style={{ height: "100%" }}>
+              <Card
+                title="Top 5 leglátogatottabb oldal"
+                style={{ height: "100%" }}
+              >
                 <div style={{ width: "100%", height: 400 }}>
                   <ResponsiveContainer>
                     <BarChart
@@ -276,7 +363,10 @@ export default function Home() {
               </Card>
             </Col>
             <Col xs={24} lg={12}>
-              <Card title="Látogatók eloszlása táblázat" style={{ height: "100%" }}>
+              <Card
+                title="Látogatók eloszlása táblázat"
+                style={{ height: "100%" }}
+              >
                 <StatisticsTable
                   from={fromDate}
                   to={toDate}
