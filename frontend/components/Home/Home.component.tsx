@@ -21,7 +21,11 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useSearchParams } from "next/navigation";
-import { ArrowDownOutlined, ArrowUpOutlined } from "@ant-design/icons";
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  InfoCircleOutlined,
+} from "@ant-design/icons";
 import MapComponent from "../Map/Map.component";
 import StatisticsTable from "../StatisticsTable/StatisticsTable.component";
 import Header from "../Header/Header.component";
@@ -48,6 +52,8 @@ export default function Home() {
   const [sitesTraffic, setSitesTraffic] = useState<
     { page: string; count: number }[]
   >([]);
+  const [bounceRate, setBounceRate] = useState(0);
+  const [bounceRateYesterday, setBounceRateYesterday] = useState(0);
 
   useEffect(() => {
     fetch("/api/v1/get-sites", {
@@ -157,6 +163,27 @@ export default function Home() {
       .then((response) => response.json())
       .then((data) => setSitesTraffic(data || []))
       .catch((error) => console.error("Error fetching stats:", error));
+
+    fetch(`/api/v1/bounce-rate?site=${selectedSite}${from}${to}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    })
+      .then((response) => response.json())
+      .then((data) => setBounceRate(data.bounceRate || 0))
+      .catch((error) => console.error("Error fetching bounce rate:", error));
+
+    fetch(
+      `/api/v1/bounce-rate?site=${selectedSite}${fromYesterday}${toYesterday}`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    )
+      .then((response) => response.json())
+      .then((data) => setBounceRateYesterday(data.bounceRate || 0))
+      .catch((error) =>
+        console.error("Error fetching bounce rate yesterday:", error),
+      );
   }, [selectedSite, fromDate, toDate]);
 
   return (
@@ -224,7 +251,7 @@ setToDate(to);
                 <Col xs={24}>
                   <Card style={{ height: "100%" }}>
                     <Statistic
-                      title="Látogatók száma"
+                      title="Látogatók száma (fő)"
                       value={visitors}
                       valueStyle={{
                         color:
@@ -261,7 +288,7 @@ setToDate(to);
                 <Col xs={24}>
                   <Card style={{ height: "100%" }}>
                     <Statistic
-                      title="Oldalon töltött átlagos idő"
+                      title="Oldalon töltött átlagos idő (perc)"
                       value={spentTime}
                       precision={1}
                       suffix={
@@ -298,7 +325,52 @@ setToDate(to);
                 </Col>
                 <Col xs={24}>
                   <Card style={{ height: "100%" }}>
-                    <Statistic title="Aktív látogatók" value={activeUsers} />
+                    <Statistic title="Aktív látogatók (fő)" value={activeUsers} />
+                  </Card>
+                </Col>
+                <Col xs={24}>
+                  <Card style={{ height: "100%" }}>
+                    <Statistic
+                      title={
+                        <span>
+                          Visszafordulási arány (%)
+                          <Tooltip title="Azon látogatók százalékos aránya, akik csak egyetlen oldalt tekintenek meg, majd elhagyják az oldalt.">
+                            <InfoCircleOutlined />
+                          </Tooltip>
+                        </span>
+                      }
+                      value={bounceRate}
+                      precision={2}
+                      suffix={
+                        <span style={{ fontSize: "14px", marginLeft: "8px" }}>
+                          {bounceRateYesterday === 0 && bounceRate === 0
+                            ? "0.00%"
+                            : bounceRateYesterday === 0
+                              ? "100.00%"
+                              : `${(
+                                  ((bounceRate - bounceRateYesterday) /
+                                    bounceRateYesterday) *
+                                  100
+                                ).toFixed(2)}%`}
+                        </span>
+                      }
+                      valueStyle={{
+                        color:
+                          bounceRate < bounceRateYesterday
+                            ? "#3f8600"
+                            : "#cf1322",
+                      }}
+                      prefix={
+                        bounceRate < bounceRateYesterday ? (
+                          <ArrowDownOutlined />
+                        ) : (
+                          <ArrowUpOutlined />
+                        )
+                      }
+                    />
+                    <Typography.Text type="secondary">
+                      a 24 órával ezelőttihez képest
+                    </Typography.Text>
                   </Card>
                 </Col>
               </Row>
