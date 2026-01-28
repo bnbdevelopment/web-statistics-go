@@ -331,14 +331,7 @@ setToDate(to);
                 <Col xs={24}>
                   <Card style={{ height: "100%" }}>
                     <Statistic
-                      title={
-                        <>
-                          Visszafordulási arány (%){" "}
-                          <Tooltip title="Azon látogatók százalékos aránya, akik csak egyetlen oldalt tekintenek meg, majd elhagyják az oldalt.">
-                            <InfoCircleOutlined />
-                          </Tooltip>
-                        </>
-                      }
+                      title={"Visszafordulási arány (%)"}
                       value={bounceRate}
                       precision={2}
                       suffix={
