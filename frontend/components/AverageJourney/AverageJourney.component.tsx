@@ -14,7 +14,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import dagre from "dagre";
-import { Spin, Alert, Empty } from "antd";
+import { Spin, Alert, Empty, Select } from "antd";
 import { TeamOutlined } from "@ant-design/icons";
 
 // --- TÍPUSOK ---
@@ -129,13 +129,47 @@ const AverageJourney = ({
   const nodeTypes = useMemo(() => ({ analyticsNode: AnalyticsNode }), []);
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [edges, setEdges, onEdgesState] = useEdgesState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter states
+  const [startPageFilter, setStartPageFilter] = useState<string>("");
+  const [endPageFilter, setEndPageFilter] = useState<string>("");
+  const [uniquePages, setUniquePages] = useState<string[]>([]);
 
   // Dátumok stringesítése
   const fromStr = from ? from.toISOString().split("T")[0] : "";
   const toStr = to ? to.toISOString().split("T")[0] : "";
+
+  // Fetch unique pages for filter dropdowns
+  useEffect(() => {
+    let isMounted = true;
+    const siteFilter = site ? `&site=${site}` : "";
+    const fromParam = fromStr ? `&from=${fromStr}` : "";
+    const toParam = toStr ? `&to=${toStr}` : "";
+
+    fetch(`/api/v1/statistics/unique-pages?${siteFilter}${fromParam}${toParam}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("API Hiba: Unique Pages");
+        return res.json();
+      })
+      .then((data: { pages: string[] }) => {
+        if (isMounted) {
+          setUniquePages(data.pages || []);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching unique pages:", err);
+        if (isMounted) {
+          setError("Hiba történt az oldalak listájának betöltésekor.");
+        }
+      });
+      
+    return () => {
+      isMounted = false;
+    };
+  }, [site, fromStr, toStr]);
 
   useEffect(() => {
     let isMounted = true;
@@ -144,8 +178,10 @@ const AverageJourney = ({
     const siteFilter = site ? `&site=${site}` : "";
     const fromParam = fromStr ? `&from=${fromStr}` : "";
     const toParam = toStr ? `&to=${toStr}` : "";
+    const startPageParam = startPageFilter ? `&start_page=${encodeURIComponent(startPageFilter)}` : "";
+    const endPageParam = endPageFilter ? `&end_page=${encodeURIComponent(endPageFilter)}` : "";
 
-    fetch(`/api/v1/average-journey?${siteFilter}${fromParam}${toParam}`, {
+    fetch(`/api/v1/average-journey?${siteFilter}${fromParam}${toParam}${startPageParam}${endPageParam}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     })
@@ -290,12 +326,46 @@ const AverageJourney = ({
         border: "1px solid #d9d9d9",
       }}
     >
+      <div
+        style={{
+          padding: "16px",
+          display: "flex",
+          gap: "16px",
+          backgroundColor: "#fff",
+          borderBottom: "1px solid #d9d9d9",
+        }}
+      >
+        <Select
+          showSearch
+          placeholder="Kezdő oldal szűrése"
+          optionFilterProp="children"
+          onChange={(value) => setStartPageFilter(value)}
+          value={startPageFilter}
+          style={{ width: 200 }}
+          options={[
+            { value: "", label: "Összes kezdő oldal" },
+            ...uniquePages.map((page) => ({ value: page, label: page })),
+          ]}
+        />
+        <Select
+          showSearch
+          placeholder="Cél oldal szűrése"
+          optionFilterProp="children"
+          onChange={(value) => setEndPageFilter(value)}
+          value={endPageFilter}
+          style={{ width: 200 }}
+          options={[
+            { value: "", label: "Összes cél oldal" },
+            ...uniquePages.map((page) => ({ value: page, label: page })),
+          ]}
+        />
+      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        onEdgesChange={onEdgesState}
         fitView
         attributionPosition="bottom-right"
       >

@@ -25,6 +25,67 @@ interface CohortData {
   retention_data: number[];
 }
 
+const CohortSummary = ({ data }: { data: CohortData[] }) => {
+  if (!data || data.length < 2) {
+    return null;
+  }
+
+  const keyWeek = 2; // Analyze performance at Week 2
+  let totalRetention = 0;
+  let validCohorts = 0;
+  let bestCohort = { date: "", retention: -1 };
+  
+  data.forEach(cohort => {
+    if (cohort.retention_data.length > keyWeek) {
+      const retention = cohort.retention_data[keyWeek];
+      totalRetention += retention;
+      validCohorts++;
+      if (retention > bestCohort.retention) {
+        bestCohort = { date: cohort.cohort_date, retention: retention };
+      }
+    }
+  });
+
+  if (validCohorts === 0) return null;
+
+  const averageRetention = totalRetention / validCohorts;
+  const mostRecentCohort = data[0];
+  const recentRetention = mostRecentCohort.retention_data.length > keyWeek ? mostRecentCohort.retention_data[keyWeek] : -1;
+  
+  const trend = recentRetention > averageRetention ? "jobb" : "alacsonyabb";
+  const trendColor = recentRetention > averageRetention ? "green" : "orange";
+
+  const insights = [];
+
+  if (recentRetention >= 0) {
+    insights.push(
+      <li key="1">
+        A legfrissebb ({new Date(mostRecentCohort.cohort_date).toLocaleDateString()}) csoport megtartása a {keyWeek}. héten{" "}
+        <b style={{ color: trendColor }}>{recentRetention.toFixed(1)}%</b>, ami {trend} az átlagos {averageRetention.toFixed(1)}%-nál.
+      </li>
+    );
+  }
+
+  if (bestCohort.retention >= 0) {
+    insights.push(
+      <li key="2">
+        A legjobban teljesítő csoport a <b style={{color: "green"}}>{new Date(bestCohort.date).toLocaleDateString()}-i</b> volt, {bestCohort.retention.toFixed(1)}%-os megtartással a {keyWeek}. héten.
+      </li>
+    );
+  }
+
+  return (
+    <Alert
+      message="Gyors Elemzés"
+      description={<ul>{insights}</ul>}
+      type="success"
+      showIcon
+      style={{ marginBottom: "24px" }}
+    />
+  );
+};
+
+
 const CohortAnalysis = ({
   site,
   from,
@@ -74,27 +135,33 @@ const CohortAnalysis = ({
   }, [site, from, to]);
 
   const getColorForPercentage = (percentage: number) => {
-    if (percentage < 0) return "#ffffff";
-    const opacity = percentage / 100;
-    return `rgba(59, 130, 246, ${opacity})`; // Blue scale
+    if (percentage < 0) return "#ffffff"; // Should not happen
+    if (percentage > 50) return "rgba(34, 197, 94, 0.7)"; // Strong Green
+    if (percentage > 25) return "rgba(163, 230, 53, 0.6)"; // Light Green
+    if (percentage > 10) return "rgba(251, 191, 36, 0.5)"; // Light Orange/Yellow
+    return "rgba(252, 165, 165, 0.4)"; // Light Red
   };
 
-  const transformDataForChart = () => {
-    const chartData: any[] = [];
-    if (!data) return chartData;
+  const calculateAverageRetention = () => {
+    if (!data || data.length === 0) return [];
+    
+    const weeklyAverages = Array(numberOfWeeks).fill(0);
+    const cohortCountsPerWeek = Array(numberOfWeeks).fill(0);
 
-    for (let i = 0; i < numberOfWeeks; i++) {
-      const weekData: { [key: string]: any } = { name: `Hét ${i}` };
-      data.forEach((cohort) => {
-        weekData[cohort.cohort_date] = cohort.retention_data[i]?.toFixed(2) || 0;
+    data.forEach(cohort => {
+      cohort.retention_data.forEach((percentage, weekIndex) => {
+        if (percentage >= 0) {
+          weeklyAverages[weekIndex] += percentage;
+          cohortCountsPerWeek[weekIndex]++;
+        }
       });
-      chartData.push(weekData);
-    }
-    return chartData;
-  };
-  
-  const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+    });
 
+    return weeklyAverages.map((total, index) => ({
+      name: `Hét ${index}`,
+      "Átlagos megtartás": cohortCountsPerWeek[index] > 0 ? (total / cohortCountsPerWeek[index]).toFixed(2) : 0,
+    }));
+  };
 
   const renderTableView = () => {
     const columns: TableProps<CohortData>["columns"] = [
@@ -134,7 +201,7 @@ const CohortAnalysis = ({
                   style={{
                     backgroundColor: getColorForPercentage(percentage),
                     padding: "10px",
-                    color: percentage > 50 ? "white" : "black",
+                    color: "black",
                     textAlign: "center",
                     borderRadius: "4px",
                     cursor: "pointer",
@@ -162,7 +229,7 @@ const CohortAnalysis = ({
   };
 
   const renderChartView = () => {
-    const chartData = transformDataForChart();
+    const chartData = calculateAverageRetention();
 
     return (
       <ResponsiveContainer width="100%" height={400}>
@@ -175,18 +242,17 @@ const CohortAnalysis = ({
               angle: -90,
               position: "insideLeft",
             }}
+            domain={[0, 100]}
           />
           <Tooltip />
           <Legend />
-          {data.map((cohort, index) => (
-            <Line
-              key={cohort.cohort_date}
-              type="monotone"
-              dataKey={cohort.cohort_date}
-              stroke={COLORS[index % COLORS.length]}
-              name={new Date(cohort.cohort_date).toLocaleDateString()}
-            />
-          ))}
+          <Line
+            key="average_retention"
+            type="monotone"
+            dataKey="Átlagos megtartás"
+            stroke="#8884d8"
+            strokeWidth={3}
+          />
         </LineChart>
       </ResponsiveContainer>
     );
@@ -202,6 +268,7 @@ const CohortAnalysis = ({
 
   return (
     <div>
+      <CohortSummary data={data} />
       <Alert
         message="Hogyan kell értelmezni ezt az elemzést?"
         description={

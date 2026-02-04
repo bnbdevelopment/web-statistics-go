@@ -1,11 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, Statistic, Row, Col, Layout, Divider, Typography } from "antd";
+import {
+  Card,
+  Statistic,
+  Row,
+  Col,
+  Layout,
+  Divider,
+  Typography,
+  Tooltip,
+  Collapse,
+} from "antd";
 import {
   AreaChart,
   Area,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
   BarChart,
@@ -13,7 +23,11 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useSearchParams } from "next/navigation";
-import { ArrowDownOutlined, ArrowUpOutlined } from "@ant-design/icons";
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  InfoCircleOutlined,
+} from "@ant-design/icons";
 import MapComponent from "../Map/Map.component";
 import StatisticsTable from "../StatisticsTable/StatisticsTable.component";
 import Header from "../Header/Header.component";
@@ -195,13 +209,80 @@ export default function Home() {
       />
       <Layout>
         <Content style={{ padding: "24px", background: "#f0f2f5" }}>
-          {/* Quick & Relevant */}
-          <Title level={4} style={{ marginBottom: "24px" }}>
-            Gyors áttekintés
+          {/* --- Row 1: KPI Cards --- */}
+          <Title level={4} style={{ marginBottom: "16px" }}>
+            Pillanatkép
           </Title>
           <Row gutter={[24, 24]}>
-            <Col xs={24} lg={16}>
-              <Card title="Látogatók" style={{ height: "100%" }}>
+            <Col xs={24} sm={12} lg={6}>
+              <Card style={{ height: "100%" }}>
+                <Statistic
+                  title="Látogatók száma (fő)"
+                  value={visitors}
+                  valueStyle={{
+                    color: visitors > visitorsYesterday ? "#3f8600" : "#cf1322",
+                  }}
+                  prefix={
+                    visitors > visitorsYesterday ? (
+                      <ArrowUpOutlined />
+                    ) : (
+                      <ArrowDownOutlined />
+                    )
+                  }
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card style={{ height: "100%" }}>
+                <Statistic
+                  title="Oldalon töltött átlagos idő (perc)"
+                  value={spentTime}
+                  precision={1}
+                  valueStyle={{
+                    color:
+                      spentTime > spentTimeYesterday ? "#3f8600" : "#cf1322",
+                  }}
+                  prefix={
+                    spentTime > spentTimeYesterday ? (
+                      <ArrowUpOutlined />
+                    ) : (
+                      <ArrowDownOutlined />
+                    )
+                  }
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card style={{ height: "100%" }}>
+                <Statistic
+                  title={"Visszafordulási arány (%)"}
+                  value={bounceRate}
+                  precision={2}
+                  valueStyle={{
+                    color:
+                      bounceRate < bounceRateYesterday ? "#3f8600" : "#cf1322",
+                  }}
+                  prefix={
+                    bounceRate < bounceRateYesterday ? (
+                      <ArrowUpOutlined />
+                    ) : (
+                      <ArrowDownOutlined />
+                    )
+                  }
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card style={{ height: "100%" }}>
+                <Statistic title="Aktív látogatók (fő)" value={activeUsers} />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* --- Row 2: Main Visitors Chart --- */}
+          <Row gutter={[24, 24]} style={{ marginTop: "24px" }}>
+            <Col xs={24}>
+              <Card title="Látogatói trend" style={{ height: "100%" }}>
                 {visitToChart && visitToChart.length > 0 && (
                   <div style={{ width: "100%", height: 300 }}>
                     <ResponsiveContainer>
@@ -228,7 +309,7 @@ export default function Home() {
                         </defs>
                         <XAxis dataKey="interval" />
                         <YAxis />
-                        <Tooltip />
+                        <RechartsTooltip />
                         <Area
                           type="monotone"
                           dataKey="uniqueSessions"
@@ -242,143 +323,16 @@ export default function Home() {
                 )}
               </Card>
             </Col>
-            <Col xs={24} lg={8}>
-              <Row gutter={[24, 24]}>
-                <Col xs={24}>
-                  <Card style={{ height: "100%" }}>
-                    <Statistic
-                      title="Látogatók száma (fő)"
-                      value={visitors}
-                      valueStyle={{
-                        color:
-                          visitors > visitorsYesterday ? "#3f8600" : "#cf1322",
-                      }}
-                      prefix={
-                        visitors > visitorsYesterday ? (
-                          <ArrowUpOutlined />
-                        ) : (
-                          <ArrowDownOutlined />
-                        )
-                      }
-                      suffix={
-                        <span style={{ fontSize: "14px", marginLeft: "8px" }}>
-                          {visitorsYesterday === 0 && visitors === 0
-                            ? "0.00%"
-                            : visitorsYesterday === 0
-                              ? "100.00%"
-                              : `${(
-                                  ((visitors - visitorsYesterday) /
-                                    visitorsYesterday) *
-                                  100
-                                ).toFixed(2)}%`}
-                        </span>
-                      }
-                    />
-                    <Typography.Text type="secondary">
-                      a 24 órával ezelőttihez képest
-                    </Typography.Text>
-                  </Card>
-                </Col>
-                <Col xs={24}>
-                  <Card style={{ height: "100%" }}>
-                    <Statistic
-                      title="Oldalon töltött átlagos idő (perc)"
-                      value={spentTime}
-                      precision={1}
-                      suffix={
-                        <span style={{ fontSize: "14px", marginLeft: "8px" }}>
-                          {spentTimeYesterday === 0 && spentTime === 0
-                            ? "0.00%"
-                            : spentTimeYesterday === 0
-                              ? "100.00%"
-                              : `${(
-                                  ((spentTime - spentTimeYesterday) /
-                                    spentTimeYesterday) *
-                                  100
-                                ).toFixed(2)}%`}
-                        </span>
-                      }
-                      valueStyle={{
-                        color:
-                          spentTime > spentTimeYesterday
-                            ? "#3f8600"
-                            : "#cf1322",
-                      }}
-                      prefix={
-                        spentTime > spentTimeYesterday ? (
-                          <ArrowUpOutlined />
-                        ) : (
-                          <ArrowDownOutlined />
-                        )
-                      }
-                    />
-                    <Typography.Text type="secondary">
-                      a 24 órával ezelőttihez képest
-                    </Typography.Text>
-                  </Card>
-                </Col>
-                <Col xs={24}>
-                  <Card style={{ height: "100%" }}>
-                    <Statistic
-                      title="Aktív látogatók (fő)"
-                      value={activeUsers}
-                    />
-                  </Card>
-                </Col>
-                <Col xs={24}>
-                  <Card style={{ height: "100%" }}>
-                    <Statistic
-                      title={"Visszafordulási arány (%)"}
-                      value={bounceRate}
-                      precision={2}
-                      suffix={
-                        <span style={{ fontSize: "14px", marginLeft: "8px" }}>
-                          {bounceRateYesterday === 0 && bounceRate === 0
-                            ? "0.00%"
-                            : bounceRateYesterday === 0
-                              ? "100.00%"
-                              : `${(
-                                  ((bounceRate - bounceRateYesterday) /
-                                    bounceRateYesterday) *
-                                  100
-                                ).toFixed(2)}%`}
-                        </span>
-                      }
-                      valueStyle={{
-                        color:
-                          bounceRate < bounceRateYesterday
-                            ? "#3f8600"
-                            : "#cf1322",
-                      }}
-                      prefix={
-                        bounceRate < bounceRateYesterday ? (
-                          <ArrowDownOutlined />
-                        ) : (
-                          <ArrowUpOutlined />
-                        )
-                      }
-                    />
-                    <Typography.Text type="secondary">
-                      a 24 órával ezelőttihez képest
-                    </Typography.Text>
-                  </Card>
-                </Col>
-              </Row>
-            </Col>
           </Row>
 
-          <Divider style={{ marginTop: "48px", marginBottom: "48px" }}>
-            <Title level={4}>Részletes elemzés</Title>
-          </Divider>
-
-          {/* Deeper Dive */}
-          <Row gutter={[24, 24]}>
-            <Col xs={24} lg={16}>
+          {/* --- Row 3: Geo and Content --- */}
+          <Row gutter={[24, 24]} style={{ marginTop: "24px" }}>
+            <Col xs={24} lg={12}>
               <Card title="Látogatók eloszlása" style={{ height: "100%" }}>
                 <MapComponent from={fromDate} to={toDate} site={selectedSite} />
               </Card>
             </Col>
-            <Col xs={24} lg={8}>
+            <Col xs={24} lg={12}>
               <Card
                 title="Top 5 leglátogatottabb oldal"
                 style={{ height: "100%" }}
@@ -394,8 +348,8 @@ export default function Home() {
                     >
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
-                      <YAxis dataKey="page" type="category" />
-                      <Tooltip />
+                      <YAxis dataKey="page" type="category" width={120} />
+                      <RechartsTooltip />
                       <Bar dataKey="count" fill="#8884d8" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -404,69 +358,87 @@ export default function Home() {
             </Col>
           </Row>
 
-          <Row gutter={[24, 24]} style={{ marginTop: "24px" }}>
-            <Col xs={24} lg={12}>
-              <Card title="Oldalak látogatottsága" style={{ height: "100%" }}>
-                <div style={{ width: "100%", height: 400 }}>
-                  <ResponsiveContainer>
-                    <BarChart
-                      layout="vertical"
-                      data={sitesTraffic}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" />
-                      <YAxis dataKey="page" type="category" />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#8884d8" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card
-                title="Látogatók eloszlása táblázat"
-                style={{ height: "100%" }}
-              >
-                <StatisticsTable
-                  from={fromDate}
-                  to={toDate}
-                  site={selectedSite}
-                />
-              </Card>
-            </Col>
-          </Row>
+          {/* --- Deeper Dive Section --- */}
+          <Divider style={{ marginTop: "48px", marginBottom: "24px" }}>
+            <Title level={4}>Mélyebb elemzések</Title>
+          </Divider>
 
-          <Row gutter={[24, 24]} style={{ marginTop: "24px" }}>
-            <Col xs={24}>
-              <Card
-                title="Felhasználói megtartás (Kohorsz elemzés)"
-                style={{ height: "100%" }}
-              >
-                <CohortAnalysis
-                  site={selectedSite}
-                  from={fromDate}
-                  to={toDate}
-                />
-              </Card>
-            </Col>
-          </Row>
-          <Row gutter={[24, 24]} style={{ marginTop: "24px" }}>
-            <Col xs={24}>
-              <Card
-                title="Átlagos felhasználói útvonal elemzés (Sankey diagram)"
-                style={{ height: "100%" }}
-              >
-                <AverageJourney
-                  site={selectedSite}
-                  from={fromDate}
-                  to={toDate}
-                />
-              </Card>
-            </Col>
-          </Row>
-          <TimeAnalysis site={selectedSite} from={fromDate} to={toDate} />
+          <Collapse ghost defaultActiveKey={[]} accordion>
+            <Collapse.Panel
+              key="time-analysis"
+              header="Napszaki és heti bontású elemzés"
+            >
+              <TimeAnalysis site={selectedSite} from={fromDate} to={toDate} />
+            </Collapse.Panel>
+            <Collapse.Panel
+              key="detailed-tables"
+              header="Részletes táblázatok"
+            >
+              <Row gutter={[24, 24]}>
+                <Col xs={24} lg={12}>
+                  <Card
+                    title="Oldalak látogatottsága"
+                    style={{ height: "100%" }}
+                  >
+                    <div style={{ width: "100%", height: 400 }}>
+                      <ResponsiveContainer>
+                        <BarChart
+                          layout="vertical"
+                          data={sitesTraffic}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis type="number" />
+                          <YAxis dataKey="page" type="category" width={120} />
+                          <RechartsTooltip />
+                          <Bar dataKey="count" fill="#8884d8" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                </Col>
+                <Col xs={24} lg={12}>
+                  <Card
+                    title="Látogatók eloszlása táblázat"
+                    style={{ height: "100%" }}
+                  >
+                    <StatisticsTable
+                      from={fromDate}
+                      to={toDate}
+                      site={selectedSite}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+            </Collapse.Panel>
+            <Collapse.Panel
+              key="cohort-analysis"
+              header={
+                <span>
+                  Diákok Visszatérése Hetente{" "}
+                  <Tooltip title="Ez a nézet megmutatja, hogy az egy adott héten indult diákok közül hányan tértek vissza gyakorolni a következő hetekben.">
+                    <InfoCircleOutlined />
+                  </Tooltip>
+                </span>
+              }
+            >
+              <CohortAnalysis
+                site={selectedSite}
+                from={fromDate}
+                to={toDate}
+              />
+            </Collapse.Panel>
+            <Collapse.Panel
+              key="sankey-diagram"
+              header="Átlagos felhasználói útvonal elemzés (Sankey diagram)"
+            >
+              <AverageJourney
+                site={selectedSite}
+                from={fromDate}
+                to={toDate}
+              />
+            </Collapse.Panel>
+          </Collapse>
         </Content>
       </Layout>
       <Footer />

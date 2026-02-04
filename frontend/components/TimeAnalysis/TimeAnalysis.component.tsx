@@ -70,16 +70,16 @@ const TimeAnalysis = ({ site, from, to }: TimeAnalysisProps) => {
   return (
     <Row gutter={[24, 24]} style={{ marginTop: "24px" }}>
       <Col xs={24} lg={12}>
-        <Card title="Forgalom a hét napjai szerint">
+        <Card title="Forgalom a hét napjai szerint (átlagos)">
           <div style={{ width: "100%", height: 400 }}>
             <ResponsiveContainer>
               <BarChart data={dayData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
+                <YAxis />
+                <Tooltip formatter={(value: number) => [value.toFixed(2), "Átlagos látogatások"]} />
                 <Legend />
-                <Bar dataKey="count" fill="#8884d8" name="Látogatások" />
+                <Bar dataKey="count" fill="#8884d8" name="Átlagos látogatások" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -98,15 +98,15 @@ const TimeAnalysis = ({ site, from, to }: TimeAnalysisProps) => {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="hourLabel" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
+                <YAxis />
+                <Tooltip formatter={(value: number) => [value.toFixed(2), "Átlagos látogatások"]} />
                 <Legend />
                 <Area
                   type="monotone"
                   dataKey="count"
                   stroke="#82ca9d"
                   fill="url(#colorTime)"
-                  name="Látogatások"
+                  name="Átlagos látogatások"
                 />
               </AreaChart>
             </ResponsiveContainer>
