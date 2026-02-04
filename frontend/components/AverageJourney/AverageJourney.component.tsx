@@ -295,7 +295,7 @@ const AverageJourney = ({
     return () => {
       isMounted = false;
     };
-  }, [site, fromStr, toStr, setNodes, setEdges]);
+  }, [site, fromStr, toStr, startPageFilter, endPageFilter, setNodes, setEdges]);
 
   if (loading)
     return (
