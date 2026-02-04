@@ -78,11 +78,12 @@ func getSessionFeatures(site string, from, to time.Time) ([]sessionFeature, erro
 
 // classifySession applies a set of rules to categorize a session into an archetype.
 func classifySession(feature sessionFeature) string {
-	// Rule for "Frustrated or Aimless"
-	if feature.LoopScore >= 2.5 && feature.PageCount > 5 {
+	// Rule for "Frustrated or Aimless" - requires high loop score AND significant duration
+	if feature.LoopScore >= 2.5 && feature.PageCount > 5 && feature.Duration > 180 { // 180 seconds = 3 minutes
 		return ArchetypeFrustrated
 	}
-	if feature.Duration > 120 && feature.PageCount > 10 && feature.LoopScore >= 1.8 {
+	// Another potential rule for frustrated/aimless
+	if feature.LoopScore >= 1.8 && feature.UniquePageCount < 5 && feature.Duration > 240 { // Less unique pages but longer time suggests aimlessness
 		return ArchetypeFrustrated
 	}
 
@@ -92,13 +93,14 @@ func classifySession(feature sessionFeature) string {
 	}
 
 	// Rule for "Engaged Browser"
-	if feature.Duration > 600 && feature.LoopScore < 1.5 {
+	// High duration and low looping
+	if feature.Duration > 600 && feature.LoopScore < 1.5 { // Long session, efficient navigation
 		return ArchetypeEngaged
 	}
-	if feature.UniquePageCount > 7 && feature.LoopScore < 1.8 {
+	// Many unique pages visited, also efficient
+	if feature.UniquePageCount >= 7 && feature.LoopScore < 1.8 {
 		return ArchetypeEngaged
 	}
-
 	// Default catch-all
 	return ArchetypeDefault
 }

@@ -311,19 +311,17 @@ const AverageJourney = ({
       </div>
     );
   if (error) return <Alert message={error} type="error" />;
-  if (nodes.length === 0)
-    return (
-      <Empty description="Nincs elég adat a fő útvonalak kirajzolásához." />
-    );
 
   return (
     <div
       style={{
         width: "100%",
-        height: "600px",
+        minHeight: "600px", // Use minHeight to allow container to shrink
         background: "#f5f7fa",
         borderRadius: "12px",
         border: "1px solid #d9d9d9",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div
@@ -333,45 +331,54 @@ const AverageJourney = ({
           gap: "16px",
           backgroundColor: "#fff",
           borderBottom: "1px solid #d9d9d9",
+          flexShrink: 0, // Prevent filter bar from shrinking
         }}
       >
         <Select
           showSearch
+          allowClear
           placeholder="Kezdő oldal szűrése"
           optionFilterProp="children"
-          onChange={(value) => setStartPageFilter(value)}
-          value={startPageFilter}
+          onChange={(value) => setStartPageFilter(value || "")}
+          value={startPageFilter || undefined}
           style={{ width: 200 }}
           options={[
-            { value: "", label: "Összes kezdő oldal" },
             ...uniquePages.map((page) => ({ value: page, label: page })),
           ]}
         />
         <Select
           showSearch
+          allowClear
           placeholder="Cél oldal szűrése"
           optionFilterProp="children"
-          onChange={(value) => setEndPageFilter(value)}
-          value={endPageFilter}
+          onChange={(value) => setEndPageFilter(value || "")}
+          value={endPageFilter || undefined}
           style={{ width: 200 }}
           options={[
-            { value: "", label: "Összes cél oldal" },
             ...uniquePages.map((page) => ({ value: page, label: page })),
           ]}
         />
       </div>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesState}
-        fitView
-        attributionPosition="bottom-right"
-      >
-        <Controls showInteractive={false} />
-        <Background gap={20} size={1} color="#ccc" />
-      </ReactFlow>
+      <div style={{ flexGrow: 1, position: 'relative' }}>
+        {nodes.length === 0 ? (
+          <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '400px'}}>
+            <Empty description="Nincs elég adat a fő útvonalak kirajzolásához a jelenlegi szűrőfeltételekkel." />
+          </div>
+        ) : (
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesState}
+            fitView
+            attributionPosition="bottom-right"
+          >
+            <Controls showInteractive={false} />
+            <Background gap={20} size={1} color="#ccc" />
+          </ReactFlow>
+        )}
+      </div>
     </div>
   );
 };
