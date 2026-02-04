@@ -218,6 +218,8 @@ func getAverageJourney(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
 	site := c.Query("site")
+	startPage := c.Query("start_page") // New parameter
+	endPage := c.Query("end_page")     // New parameter
 	layout := "2006-01-02"
 
 	end := time.Now()
@@ -240,8 +242,43 @@ func getAverageJourney(c *gin.Context) {
 		start = t
 	}
 
-	sankeyData := statistics.GetAverageJourney(start, end, site)
+	sankeyData := statistics.GetAverageJourney(start, end, site, startPage, endPage) // Pass new parameters
 	c.JSON(http.StatusOK, sankeyData)
+}
+
+func getUniquePages(c *gin.Context) {
+	startStr := c.Query("from")
+	endStr := c.Query("to")
+	site := c.Query("site")
+	layout := "2006-01-02"
+
+	end := time.Now()
+	if endStr != "" {
+		t, err := time.Parse(layout, endStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
+			return
+		}
+		end = t
+	}
+
+	start := end.Add(-24 * time.Hour) // Default to last 24 hours
+	if startStr != "" {
+		t, err := time.Parse(layout, startStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
+			return
+		}
+		start = t
+	}
+
+	pages, err := statistics.GetAllUniquePages(site, start, end)
+	if err != nil {
+		log.Println("Error getting unique pages:", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"pages": pages})
 }
 
 func getBounceRate(c *gin.Context) {
@@ -385,6 +422,7 @@ func Server() {
 
 	router.GET(prefix+"/statistics/traffic-by-day-of-week", getTrafficByDayOfWeek)
 	router.GET(prefix+"/statistics/traffic-by-hour-of-day", getTrafficByHourOfDay)
+	router.GET(prefix+"/statistics/unique-pages", getUniquePages)
 
 	// Health check endpoint
 	router.GET(prefix+"/health", func(c *gin.Context) {

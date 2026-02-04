@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"fmt"
+	"math"
 	"statistics/database"
 	"statistics/structs"
 	"time"
@@ -13,13 +14,27 @@ type dowResult struct {
 	Count int
 }
 
-// GetTrafficByDayOfWeek calculates the traffic for each day of the week within a given time range for a specific site.
+// countWeekdays counts the occurrences of each weekday within a given date range.
+func countWeekdays(from, to time.Time) map[time.Weekday]int {
+	counts := make(map[time.Weekday]int)
+	// Normalize to the start of the day
+	current := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, from.Location())
+	endDay := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, to.Location())
+
+	for !current.After(endDay) {
+		counts[current.Weekday()]++
+		current = current.AddDate(0, 0, 1)
+	}
+	return counts
+}
+
+// GetTrafficByDayOfWeek calculates the average traffic for each day of the week.
 func GetTrafficByDayOfWeek(site string, from, to time.Time) ([]structs.TrafficByDay, error) {
 	var results []dowResult
 	var trafficByDay []structs.TrafficByDay
 
-	// Mapping from PostgreSQL DOW (0=Sun, 1=Mon, ...) to Hungarian day names.
 	dayMapping := []string{"Vasárnap", "Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek", "Szombat"}
+	weekdayCounts := countWeekdays(from, to)
 
 	query := database.Session.
 		Model(&structs.WebMetric{}).
@@ -35,37 +50,41 @@ func GetTrafficByDayOfWeek(site string, from, to time.Time) ([]structs.TrafficBy
 		return nil, fmt.Errorf("failed to query traffic by day of week: %w", err)
 	}
 
-	// Initialize map with all days to ensure the response contains all 7 days, even with 0 traffic
-	dailyCounts := make(map[int]int)
-	for i := 0; i < 7; i++ {
-		dailyCounts[i] = 0
-	}
-
+	dailyTotals := make(map[int]int)
 	for _, res := range results {
-		dailyCounts[res.Day] = res.Count
+		dailyTotals[res.Day] = res.Count
 	}
+	
+	orderedDays := []time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday, time.Sunday}
 
-	// Create the final ordered slice
-	for i := 0; i < 7; i++ {
-		dayIndex := (i + 1) % 7 // Start from Monday (1) instead of Sunday (0) for correct order
-		if dayIndex == 0 {
-			dayIndex = 7 // Adjust Sunday to be at the end of the week if we start from monday
+	for _, day := range orderedDays {
+		pgDow := int(day)
+		totalCount := dailyTotals[pgDow]
+		numOccurrences := weekdayCounts[day]
+		
+		var avg float64
+		if numOccurrences > 0 {
+			avg = float64(totalCount) / float64(numOccurrences)
 		}
-		pgDow := (dayIndex % 7) // Convert back to PG DOW index
+
 		trafficByDay = append(trafficByDay, structs.TrafficByDay{
 			Day:   dayMapping[pgDow],
-			Count: dailyCounts[pgDow],
+			Count: avg,
 		})
 	}
-	// a hétfő legyen az első nap
-	trafficByDay = append(trafficByDay[1:], trafficByDay[0])
 
 	return trafficByDay, nil
 }
 
-// GetTrafficByHourOfDay calculates the traffic for each hour of the day within a given time range for a specific site.
+// GetTrafficByHourOfDay calculates the average traffic for each hour of the day.
 func GetTrafficByHourOfDay(site string, from, to time.Time) ([]structs.TrafficByHour, error) {
 	var results []structs.TrafficByHour
+
+	// Calculate number of days in the range, rounding up. Minimum of 1.
+	numberOfDays := math.Ceil(to.Sub(from).Hours() / 24)
+	if numberOfDays < 1 {
+		numberOfDays = 1
+	}
 
 	query := database.Session.
 		Model(&structs.WebMetric{}).
@@ -81,20 +100,17 @@ func GetTrafficByHourOfDay(site string, from, to time.Time) ([]structs.TrafficBy
 		return nil, fmt.Errorf("failed to query traffic by hour of day: %w", err)
 	}
 
-	// Ensure all 24 hours are present in the result
-	hourlyCounts := make(map[int]int)
-	for i := 0; i < 24; i++ {
-		hourlyCounts[i] = 0
-	}
+	hourlyTotals := make(map[int]float64)
 	for _, res := range results {
-		hourlyCounts[res.Hour] = res.Count
+		hourlyTotals[res.Hour] = res.Count
 	}
 
 	var finalResults []structs.TrafficByHour
 	for i := 0; i < 24; i++ {
+		avgCount := float64(hourlyTotals[i]) / numberOfDays
 		finalResults = append(finalResults, structs.TrafficByHour{
 			Hour:  i,
-			Count: hourlyCounts[i],
+			Count: avgCount,
 		})
 	}
 

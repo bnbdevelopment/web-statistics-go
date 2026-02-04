@@ -1,6 +1,7 @@
 package statistics
 
 import (
+	"fmt"
 	"net/http"
 	"statistics/database"
 	"statistics/structs"
@@ -65,7 +66,7 @@ func ActiveUsers(page string) int64 {
 }
 
 func TimeOnSite(page string, start time.Time, end time.Time) float64 {
-	var result AvgTimeResponse
+	var result structs.AvgTimeResponse // Using structs.AvgTimeResponse here
 	if page == "" {
 		query := `
 			WITH diffs AS (
@@ -492,7 +493,7 @@ func GetCohortData(start, end time.Time, site string, numberOfWeeks int) []struc
 	return cohortData
 }
 
-func GetAverageJourney(start, end time.Time, site string) structs.SankeyData {
+func GetAverageJourney(start, end time.Time, site, startPageFilter, endPageFilter string) structs.SankeyData {
 	var flows []structs.FlowResult
 
 	query := `
@@ -514,6 +515,19 @@ func GetAverageJourney(start, end time.Time, site string) structs.SankeyData {
             page_flows
         WHERE
             target_page IS NOT NULL AND source_page != target_page
+    `
+	queryParams := []interface{}{start, end, site}
+
+	if startPageFilter != "" && startPageFilter != "%" {
+		query += ` AND source_page = ?`
+		queryParams = append(queryParams, startPageFilter)
+	}
+	if endPageFilter != "" && endPageFilter != "%" {
+		query += ` AND target_page = ?`
+		queryParams = append(queryParams, endPageFilter)
+	}
+
+	query += `
         GROUP BY
             source_page,
             target_page
@@ -524,7 +538,7 @@ func GetAverageJourney(start, end time.Time, site string) structs.SankeyData {
 		site = "%"
 	}
 
-	database.Session.Raw(query, start, end, site).Scan(&flows)
+	database.Session.Raw(query, queryParams...).Scan(&flows)
 
 	// Process flows into Sankey data
 	nodeMap := make(map[string]int)
@@ -554,4 +568,25 @@ func GetAverageJourney(start, end time.Time, site string) structs.SankeyData {
 		Nodes: nodes,
 		Links: links,
 	}
+}
+
+// GetAllUniquePages retrieves all unique page URLs within a given time range and site filter.
+func GetAllUniquePages(site string, from, to time.Time) ([]string, error) {
+	var pages []string
+
+	query := database.Session.
+		Model(&structs.WebMetric{}).
+		Select("DISTINCT page").
+		Where("timestamp >= ? AND timestamp <= ?", from, to)
+
+	if site != "" {
+		query = query.Where("site = ?", site)
+	}
+
+	err := query.Order("page ASC").Pluck("page", &pages).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get unique pages: %w", err)
+	}
+
+	return pages, nil
 }
