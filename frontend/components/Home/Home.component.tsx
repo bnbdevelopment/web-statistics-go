@@ -20,6 +20,7 @@ import Header from "../Header/Header.component";
 import Footer from "../Footer/Footer.component";
 import CohortAnalysis from "../CohortAnalysis/CohortAnalysis.component";
 import AverageJourney from "../AverageJourney/AverageJourney.component";
+import TimeAnalysis from "../TimeAnalysis/TimeAnalysis.component";
 const { Content } = Layout;
 const { Title } = Typography;
 
@@ -465,6 +466,7 @@ export default function Home() {
               </Card>
             </Col>
           </Row>
+          <TimeAnalysis site={selectedSite} from={fromDate} to={toDate} />
         </Content>
       </Layout>
       <Footer />

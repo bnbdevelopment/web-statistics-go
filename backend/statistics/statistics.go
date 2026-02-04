@@ -492,25 +492,6 @@ func GetCohortData(start, end time.Time, site string, numberOfWeeks int) []struc
 	return cohortData
 }
 
-func GetUserJourney(sessionId string) []structs.UserJourneyEntry {
-	var journey []structs.UserJourneyEntry
-
-	err := database.Session.
-		Model(&structs.WebMetric{}).
-		Select("page", "timestamp").
-		Where("session_id = ?", sessionId).
-		Order("timestamp ASC").
-		Find(&journey).Error
-
-	if err != nil {
-		// Log the error, but return an empty slice
-		// Or handle the error as appropriate for your application
-		return []structs.UserJourneyEntry{}
-	}
-
-	return journey
-}
-
 func GetAverageJourney(start, end time.Time, site string) structs.SankeyData {
 	var flows []structs.FlowResult
 

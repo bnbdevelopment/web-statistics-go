@@ -74,25 +74,23 @@ type CohortData struct {
 
 	
 
-	type UserJourneyEntry struct {
+	type FlowResult struct {
 
-		Page      string    `json:"page"`
+	
 
-			Timestamp time.Time `json:"timestamp"`
+		SourcePage string `json:"source_page"`
 
-		}
+	
 
-		
+		TargetPage string `json:"target_page"`
 
-		type FlowResult struct {
+	
 
-			SourcePage string `json:"source_page"`
+		FlowCount  int    `json:"flow_count"`
 
-			TargetPage string `json:"target_page"`
+	
 
-			FlowCount  int    `json:"flow_count"`
-
-		}
+	}
 
 		
 

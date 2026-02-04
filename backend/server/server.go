@@ -214,25 +214,6 @@ func getCohortData(c *gin.Context) {
 	c.JSON(http.StatusOK, cohortData)
 }
 
-func getUserJourney(c *gin.Context) {
-	var requestBody struct {
-		SessionId string `json:"sessionId"`
-	}
-
-	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	if requestBody.SessionId == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sessionId is required"})
-		return
-	}
-
-	journeyData := statistics.GetUserJourney(requestBody.SessionId)
-	c.JSON(http.StatusOK, journeyData)
-}
-
 func getAverageJourney(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
@@ -296,6 +277,76 @@ func getBounceRate(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func getTrafficByDayOfWeek(c *gin.Context) {
+	startStr := c.Query("from")
+	endStr := c.Query("to")
+	site := c.Query("site")
+	layout := "2006-01-02"
+
+	end := time.Now()
+	if endStr != "" {
+		t, err := time.Parse(layout, endStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
+			return
+		}
+		end = t
+	}
+
+	start := end.AddDate(0, 0, -7) // Default to last 7 days
+	if startStr != "" {
+		t, err := time.Parse(layout, startStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
+			return
+		}
+		start = t
+	}
+
+	traffic, err := statistics.GetTrafficByDayOfWeek(site, start, end)
+	if err != nil {
+		log.Println("Error getting traffic by day of week:", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.JSON(http.StatusOK, traffic)
+}
+
+func getTrafficByHourOfDay(c *gin.Context) {
+	startStr := c.Query("from")
+	endStr := c.Query("to")
+	site := c.Query("site")
+	layout := "2006-01-02"
+
+	end := time.Now()
+	if endStr != "" {
+		t, err := time.Parse(layout, endStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
+			return
+		}
+		end = t
+	}
+
+	start := end.Add(-24 * time.Hour) // Default to last 24 hours
+	if startStr != "" {
+		t, err := time.Parse(layout, startStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
+			return
+		}
+		start = t
+	}
+
+	traffic, err := statistics.GetTrafficByHourOfDay(site, start, end)
+	if err != nil {
+		log.Println("Error getting traffic by hour of day:", err)
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	c.JSON(http.StatusOK, traffic)
+}
+
 func Server() {
 	router := gin.Default()
 	port := os.Getenv("BACKEND_PORT")
@@ -330,9 +381,10 @@ func Server() {
 
 	router.POST(prefix+"/cohort", getCohortData)
 
-	router.POST(prefix+"/user-journey", getUserJourney)
-
 	router.POST(prefix+"/average-journey", getAverageJourney)
+
+	router.GET(prefix+"/statistics/traffic-by-day-of-week", getTrafficByDayOfWeek)
+	router.GET(prefix+"/statistics/traffic-by-hour-of-day", getTrafficByHourOfDay)
 
 	// Health check endpoint
 	router.GET(prefix+"/health", func(c *gin.Context) {
