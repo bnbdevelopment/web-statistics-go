@@ -122,7 +122,7 @@ export default function LandingPages({ site, from, to }: Props) {
 
         setLandingPages(landingData || []);
         setExitPages(exitData || []);
-      } catch (err: any) {
+      } catch (err) {
         console.error("Landing/Exit pages fetch error:", err);
         setError("Nem sikerült betölteni az adatokat.");
       } finally {
@@ -133,7 +133,7 @@ export default function LandingPages({ site, from, to }: Props) {
     fetchData();
   }, [site, from, to]);
 
-  const exportCSV = (data: any[], filename: string) => {
+  const exportCSV = (data: Record<string, unknown>[], filename: string) => {
     if (!data.length) return;
     const headers = Object.keys(data[0]).join(",");
     const rows = data.map((item) => Object.values(item).join(",")).join("\n");

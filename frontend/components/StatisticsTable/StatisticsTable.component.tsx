@@ -29,8 +29,8 @@ const StatisticsTable = ({
   to,
   site,
 }: {
-  from: any;
-  to: any;
+  from: Date | string | null;
+  to: Date | string | null;
   site: string;
 }) => {
   const [locations, setLocations] = useState<LocationData[]>([]);

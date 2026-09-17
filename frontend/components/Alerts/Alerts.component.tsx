@@ -45,12 +45,18 @@ const Alerts = ({ site, from, to }: Props) => {
     return <Empty description="Nincs kritikus riasztás" />;
   }
 
+  const getAlertType = (level: string): "error" | "warning" | "info" => {
+    if (level === "critical") return "error";
+    if (level === "warning") return "warning";
+    return "info";
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {alerts.map((alert, idx) => (
         <Alert
           key={idx}
-          type={alert.level === "critical" ? "error" : alert.level}
+          type={getAlertType(alert.level)}
           message={alert.message}
           description={`${alert.metric}: ${alert.value.toFixed(1)} (küszöb ${alert.threshold})`}
           showIcon
