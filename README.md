@@ -2,6 +2,13 @@
 
 Ez a projekt egy webstatisztikai alkalmazás, amely a Go nyelven íródott backendből és egy Next.js frontendből áll. Lehetővé teszi a webhely forgalmának nyomon követését, beleértve az egyedi látogatókat, a munkameneteket, a földrajzi helyzetet és egyebeket.
 
+## Kubernetes és kiadások
+
+A production Helm chart dokumentációja: [`charts/web-statistics/README.md`](charts/web-statistics/README.md).
+A kiadási folyamat és a szükséges repository beállítások: [`docs/releases.md`](docs/releases.md).
+
+A `main` ágra történő push csak a módosított komponenseket adja ki. A backend és frontend külön SemVer verziót kap, a chart pedig akkor frissül, amikor maga a chart vagy valamelyik általa telepített image változik. A kiadási workflow a verziófájlokat visszacommitolja, az image-eket és az OCI chartot a Google Artifact Registry-be tölti, majd komponensenként GitHub Release-t készít automatikus release note-okkal.
+
 ## Telepítés
 
 A projektet Docker és Docker Compose segítségével lehet a legegyszerűbben futtatni.

@@ -1,0 +1,9 @@
+Web Statistics is installed.
+
+Frontend service: {{ include "web-statistics.fullname" . }}-frontend:{{ .Values.frontend.service.port }}
+Backend service:  {{ include "web-statistics.fullname" . }}-backend:{{ .Values.backend.service.port }}
+
+{{- if and (not .Values.ingress.enabled) (not .Values.traefik.ingressRoute.enabled) }}
+No ingress is enabled. For local access:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "web-statistics.fullname" . }}-frontend 3000:{{ .Values.frontend.service.port }}
+{{- end }}

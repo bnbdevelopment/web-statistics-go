@@ -1,0 +1,206 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "web-statistics.fullname" . }}-backend
+  labels:
+    {{- include "web-statistics.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  {{- if not .Values.backend.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "web-statistics.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      annotations:
+        checksum/database: {{ include "web-statistics.backendChecksum" . }}
+        {{- with .Values.backend.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "web-statistics.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+        {{- with .Values.backend.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "web-statistics.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      securityContext:
+        {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.backend.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.backend.migration.enabled }}
+      initContainers:
+        - name: database-migration
+          image: {{ include "web-statistics.image" .Values.backend.image }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          args: [migrate]
+          securityContext:
+            {{- toYaml .Values.backend.securityContext | nindent 12 }}
+          env:
+            {{- include "web-statistics.databaseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.backend.migration.resources | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: backend
+          image: {{ include "web-statistics.image" .Values.backend.image }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.backend.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.port }}
+              protocol: TCP
+          env:
+            - name: BACKEND_PORT
+              value: {{ .Values.backend.service.port | quote }}
+            - name: PREFIX
+              value: {{ .Values.backend.env.prefix | quote }}
+            - name: GIN_MODE
+              value: {{ .Values.backend.env.ginMode | quote }}
+            {{- include "web-statistics.databaseEnv" . | nindent 12 }}
+            {{- if .Values.geoip.enabled }}
+            - name: GEODB_PATH
+              value: {{ .Values.geoip.path | quote }}
+            {{- end }}
+            {{- if .Values.observability.otelCollector.enabled }}
+            - name: LOG_FILE
+              value: /var/log/web-statistics/backend.log
+            {{- end }}
+            {{- with .Values.backend.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.backend.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.backend.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ printf "%s/health" .Values.backend.env.prefix }}
+              port: http
+            failureThreshold: {{ .Values.backend.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.backend.probes.startup.periodSeconds }}
+          {{- end }}
+          {{- if .Values.backend.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ printf "%s/health" .Values.backend.env.prefix }}
+              port: http
+            periodSeconds: {{ .Values.backend.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.backend.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.backend.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ printf "%s/health" .Values.backend.env.prefix }}
+              port: http
+            periodSeconds: {{ .Values.backend.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.backend.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.backend.probes.liveness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.geoip.enabled }}
+            - name: geoip
+              mountPath: /geodb
+              readOnly: true
+            {{- end }}
+            {{- if .Values.observability.otelCollector.enabled }}
+            - name: application-logs
+              mountPath: /var/log/web-statistics
+            {{- end }}
+            {{- with .Values.backend.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.observability.otelCollector.enabled }}
+        - name: otel-collector
+          image: "{{ .Values.observability.otelCollector.image.repository }}:{{ .Values.observability.otelCollector.image.tag }}"
+          imagePullPolicy: {{ .Values.observability.otelCollector.image.pullPolicy }}
+          args: [--config=/etc/otelcol/collector.yaml]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.observability.otelCollector.endpoint | quote }}
+          {{- with .Values.observability.otelCollector.existingSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ . }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.observability.otelCollector.resources | nindent 12 }}
+          volumeMounts:
+            - name: application-logs
+              mountPath: /var/log/web-statistics
+              readOnly: true
+            - name: otel-config
+              mountPath: /etc/otelcol
+              readOnly: true
+            - name: otel-tmp
+              mountPath: /tmp
+        {{- end }}
+        {{- with .Values.backend.sidecars }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.geoip.enabled }}
+        - name: geoip
+          {{- if .Values.geoip.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.geoip.existingClaim }}
+          {{- else }}
+          {{- toYaml .Values.geoip.volume | nindent 10 }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.observability.otelCollector.enabled }}
+        - name: application-logs
+          emptyDir: {}
+        - name: otel-config
+          configMap:
+            name: {{ include "web-statistics.fullname" . }}-otel
+        - name: otel-tmp
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.backend.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

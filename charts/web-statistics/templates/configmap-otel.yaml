@@ -1,0 +1,32 @@
+{{- if .Values.observability.otelCollector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "web-statistics.fullname" . }}-otel
+  labels:
+    {{- include "web-statistics.labels" . | nindent 4 }}
+data:
+  collector.yaml: |
+    {{- if .Values.observability.otelCollector.config }}
+    {{- tpl .Values.observability.otelCollector.config . | nindent 4 }}
+    {{- else }}
+    receivers:
+      filelog:
+        include: [/var/log/web-statistics/*.log]
+        start_at: beginning
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 200
+      batch: {}
+    exporters:
+      otlphttp:
+        endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    service:
+      pipelines:
+        logs:
+          receivers: [filelog]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp]
+    {{- end }}
+{{- end }}

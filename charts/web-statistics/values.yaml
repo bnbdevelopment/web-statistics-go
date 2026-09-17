@@ -1,0 +1,251 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+backend:
+  replicaCount: 2
+  image:
+    registry: europe-west3-docker.pkg.dev
+    repository: bnbdevelopment/webstats/backend
+    tag: "0.1.0" # backend-version
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3001
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    readOnlyRootFilesystem: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  env:
+    prefix: /api/v1
+    ginMode: release
+  extraEnv: []
+  envFrom: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  sidecars: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  terminationGracePeriodSeconds: 30
+  probes:
+    startup:
+      enabled: true
+      failureThreshold: 30
+      periodSeconds: 2
+    readiness:
+      enabled: true
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+    liveness:
+      enabled: true
+      periodSeconds: 20
+      timeoutSeconds: 2
+      failureThreshold: 3
+  migration:
+    enabled: true
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: ""
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+frontend:
+  replicaCount: 2
+  image:
+    registry: europe-west3-docker.pkg.dev
+    repository: bnbdevelopment/webstats/frontend
+    tag: "0.1.0" # frontend-version
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    readOnlyRootFilesystem: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  extraEnv: []
+  envFrom: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  sidecars: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  terminationGracePeriodSeconds: 30
+  probes:
+    startup:
+      enabled: true
+      failureThreshold: 30
+      periodSeconds: 2
+    readiness:
+      enabled: true
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+    liveness:
+      enabled: true
+      periodSeconds: 20
+      timeoutSeconds: 2
+      failureThreshold: 3
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: ""
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# PostgreSQL/TimescaleDB is external to this chart. For production, create a
+# Secret and set existingSecret. Direct values are provided for local installs.
+database:
+  createSecret: false
+  existingSecret: ""
+  secretKeys:
+    host: host
+    port: port
+    name: name
+    user: username
+    password: password
+    sslMode: sslmode
+  host: ""
+  port: "5432"
+  name: statistics
+  user: ""
+  password: ""
+  sslMode: require
+
+geoip:
+  enabled: false
+  path: /geodb/GeoDB.mmdb
+  existingClaim: ""
+  volume:
+    # Set a native volume source such as configMap, secret, or csi.
+    configMap:
+      name: ""
+      optional: true
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: web-statistics.local
+      paths:
+        - path: /api/v1
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls: []
+
+traefik:
+  ingressRoute:
+    enabled: false
+    entryPoints: [websecure]
+    annotations: {}
+    routes:
+      - match: Host(`web-statistics.local`) && PathPrefix(`/api/v1`)
+        kind: Rule
+        service: backend
+        middlewares: []
+      - match: Host(`web-statistics.local`)
+        kind: Rule
+        service: frontend
+        middlewares: []
+    tls: {}
+
+serviceMonitor:
+  enabled: false
+  namespace: ""
+  labels: {}
+  annotations: {}
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  honorLabels: false
+  metricRelabelings: []
+  relabelings: []
+
+observability:
+  # The backend writes JSON/plain logs to stdout. Enabling this collector also
+  # writes them to a shared file and exports that file through OTLP/HTTP.
+  otelCollector:
+    enabled: false
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: 0.136.0
+      pullPolicy: IfNotPresent
+    endpoint: http://otel-collector.observability:4318
+    existingSecret: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    config: ""
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+commonLabels: {}

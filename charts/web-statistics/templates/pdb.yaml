@@ -1,0 +1,19 @@
+{{- range $component := list "backend" "frontend" }}
+{{- $values := index $.Values $component }}
+{{- if $values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "web-statistics.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "web-statistics.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  minAvailable: {{ $values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "web-statistics.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $component }}
+---
+{{- end }}
+{{- end }}

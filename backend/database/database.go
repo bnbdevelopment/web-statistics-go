@@ -12,6 +12,15 @@ import (
 var Session *gorm.DB
 
 func DatabaseInitSession() error {
+	if err := Connect(); err != nil {
+		return err
+	}
+
+	return Migrate()
+}
+
+// Connect initializes the database session without changing the schema.
+func Connect() error {
 	host := getEnv("DB_HOST", "timescaledb")
 	user := getEnv("DB_USER", "root")
 	password := getEnv("DB_PASSWORD", "12345")
@@ -28,13 +37,18 @@ func DatabaseInitSession() error {
 	}
 
 	Session = db
+	return nil
+}
 
-	err = db.AutoMigrate(&structs.WebMetric{})
-	if err != nil {
-		return err
+// Migrate applies the schema changes required by the current backend version.
+// It is intentionally separate from Connect so deployments can run it once
+// before application containers start.
+func Migrate() error {
+	if Session == nil {
+		return fmt.Errorf("database session is not initialized")
 	}
 
-	return nil
+	return Session.AutoMigrate(&structs.WebMetric{})
 }
 
 func getEnv(key, defaultValue string) string {
