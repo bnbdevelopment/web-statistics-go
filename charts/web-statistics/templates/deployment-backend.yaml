@@ -47,6 +47,7 @@ spec:
         - name: database-migration
           image: {{ include "web-statistics.image" .Values.backend.image }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command: ["/app/main"]
           args: [migrate]
           securityContext:
             {{- toYaml .Values.backend.securityContext | nindent 12 }}
