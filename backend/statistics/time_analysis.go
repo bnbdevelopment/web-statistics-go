@@ -54,14 +54,14 @@ func GetTrafficByDayOfWeek(site string, from, to time.Time) ([]structs.TrafficBy
 	for _, res := range results {
 		dailyTotals[res.Day] = res.Count
 	}
-	
+
 	orderedDays := []time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday, time.Sunday}
 
 	for _, day := range orderedDays {
 		pgDow := int(day)
 		totalCount := dailyTotals[pgDow]
 		numOccurrences := weekdayCounts[day]
-		
+
 		var avg float64
 		if numOccurrences > 0 {
 			avg = float64(totalCount) / float64(numOccurrences)

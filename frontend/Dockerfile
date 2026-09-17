@@ -19,6 +19,7 @@ COPY package.json package-lock.json* ./
 # generated standalone output is copied into the runtime image.
 RUN npm ci --no-audit --no-fund
 
+
 # Stage 2: Build the application
 FROM base AS builder
 

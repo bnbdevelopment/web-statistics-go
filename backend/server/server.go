@@ -22,53 +22,56 @@ func userTraffic(c *gin.Context) {
 	sessionId := c.Query("sessionId")
 	if sessionId == "" {
 		sessionId = uuid.New().String()
-		c.String(http.StatusOK, sessionId)
-		return
+	}
+
+	ip := c.Request.Header.Get("cf-connecting-ip")
+	if ip == "" {
+		ip = c.Request.Header.Get("X-Forwarded-For")
+	}
+	if ip == "" {
+		ip = c.ClientIP()
+	}
+
+	// Perform geolocation lookup
+	geoData, _ := geolocation.Lookup(ip)
+
+	record := structs.WebMetric{
+		SessionId: sessionId,
+		Timestamp: time.Now(),
+		Page:      c.Query("page"),
+		Site:      c.Query("site"),
+		Ip:        ip,
+	}
+
+	// Populate geo fields if lookup succeeded
+	if geoData != nil {
+		record.CountryCode = &geoData.CountryCode
+		record.CountryName = &geoData.CountryName
+		record.City = &geoData.City
+		record.Region = &geoData.Region
+		record.Latitude = &geoData.Latitude
+		record.Longitude = &geoData.Longitude
+	}
+
+	// Queue for batch insertion with fallback
+	if database.GlobalIngestionQueue != nil {
+		database.GlobalIngestionQueue.Enqueue(record)
 	} else {
-		ip := c.Request.Header.Get("cf-connecting-ip")
-		if ip == "" {
-			ip = c.Request.Header.Get("X-Forwarded-For")
-		}
-		if ip == "" {
-			ip = c.ClientIP()
-		}
-
-		// Perform geolocation lookup
-		geoData, _ := geolocation.Lookup(ip)
-
-		record := structs.WebMetric{
-			SessionId: sessionId,
-			Timestamp: time.Now(),
-			Page:      c.Query("page"),
-			Site:      c.Query("site"),
-			Ip:        ip,
-		}
-
-		// Populate geo fields if lookup succeeded
-		if geoData != nil {
-			record.CountryCode = &geoData.CountryCode
-			record.CountryName = &geoData.CountryName
-			record.City = &geoData.City
-			record.Region = &geoData.Region
-			record.Latitude = &geoData.Latitude
-			record.Longitude = &geoData.Longitude
-		}
-		// If geoData is nil, fields remain nil (graceful degradation)
-
 		err := database.Session.Create(&record).Error
 		if err != nil {
 			log.Println("Error inserting traffic data:", err)
 			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
-		c.String(http.StatusOK, sessionId)
 	}
+
+	c.String(http.StatusOK, sessionId)
 }
 
 func getLocations(c *gin.Context) {
 	from := c.Query("from")
 	to := c.Query("to")
-	page := c.Query("page")
+	site := getSiteParam(c)
 	var fromTime, toTime time.Time
 	var err error
 	layout := "2006-01-02"
@@ -87,14 +90,14 @@ func getLocations(c *gin.Context) {
 		fromTime = time.Now().Add(-24 * time.Hour)
 		toTime = time.Now()
 	}
-	locations := statistics.GetLocations(fromTime, toTime, page)
+	locations := statistics.GetLocations(fromTime, toTime, site)
 	c.JSON(http.StatusOK, gin.H{"locations": locations})
 }
 
 func traffic(c *gin.Context) {
 	from := c.Query("from")
 	to := c.Query("to")
-	page := c.Query("page")
+	site := getSiteParam(c)
 	var fromTime, toTime time.Time
 	var err error
 	layout := "2006-01-02"
@@ -113,7 +116,7 @@ func traffic(c *gin.Context) {
 		fromTime = time.Now().Add(-24 * time.Hour)
 		toTime = time.Now()
 	}
-	numberOfUsers := statistics.GetUsers(fromTime, toTime, page)
+	numberOfUsers := statistics.GetUsers(fromTime, toTime, site)
 	c.JSON(http.StatusOK, gin.H{"traffic": numberOfUsers})
 }
 
@@ -147,7 +150,7 @@ func CORSMiddleware() gin.HandlerFunc {
 func GetTimeOnTheSite(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
-	page := c.Query("page")
+	site := getSiteParam(c)
 	layout := "2006-01-02"
 
 	end := time.Now()
@@ -170,7 +173,7 @@ func GetTimeOnTheSite(c *gin.Context) {
 		start = t
 	}
 
-	result := statistics.TimeOnSite(page, start, end)
+	result := statistics.TimeOnSite(site, start, end)
 
 	response := structs.AvgTimeResponse{AvgTimeSpent: result}
 
@@ -180,7 +183,7 @@ func GetTimeOnTheSite(c *gin.Context) {
 func getCohortData(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
-	site := c.Query("site")
+	site := getSiteParam(c)
 	weeksStr := c.DefaultQuery("weeks", "12") // Default to 12 weeks
 	layout := "2006-01-02"
 
@@ -218,9 +221,9 @@ func getCohortData(c *gin.Context) {
 func getAverageJourney(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
-	site := c.Query("site")
-	startPage := c.Query("start_page") // New parameter
-	endPage := c.Query("end_page")     // New parameter
+	site := getSiteParam(c)
+	startPage := c.Query("start_page")
+	endPage := c.Query("end_page")
 	layout := "2006-01-02"
 
 	end := time.Now()
@@ -243,14 +246,14 @@ func getAverageJourney(c *gin.Context) {
 		start = t
 	}
 
-	sankeyData := statistics.GetAverageJourney(start, end, site, startPage, endPage) // Pass new parameters
+	sankeyData := statistics.GetAverageJourney(start, end, site, startPage, endPage)
 	c.JSON(http.StatusOK, sankeyData)
 }
 
 func getUniquePages(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
-	site := c.Query("site")
+	site := getSiteParam(c)
 	layout := "2006-01-02"
 
 	end := time.Now()
@@ -285,7 +288,7 @@ func getUniquePages(c *gin.Context) {
 func getBounceRate(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
-	site := c.Query("site")
+	site := getSiteParam(c)
 	layout := "2006-01-02"
 
 	end := time.Now()
@@ -318,7 +321,7 @@ func getBounceRate(c *gin.Context) {
 func getTrafficByDayOfWeek(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
-	site := c.Query("site")
+	site := getSiteParam(c)
 	layout := "2006-01-02"
 
 	end := time.Now()
@@ -353,7 +356,7 @@ func getTrafficByDayOfWeek(c *gin.Context) {
 func getTrafficByHourOfDay(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
-	site := c.Query("site")
+	site := getSiteParam(c)
 	layout := "2006-01-02"
 
 	end := time.Now()
@@ -388,7 +391,7 @@ func getTrafficByHourOfDay(c *gin.Context) {
 func getArchetypes(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
-	site := c.Query("site")
+	site := getSiteParam(c)
 	layout := "2006-01-02"
 
 	end := time.Now()
@@ -434,32 +437,72 @@ func Server() {
 
 	router.Use(CORSMiddleware())
 
+	// Ingestion
 	router.GET(prefix+"/put-traffic", userTraffic)
+	router.POST(prefix+"/put-traffic", userTraffic)
 
+	// Core traffic & site queries (support both GET and POST)
+	router.GET(prefix+"/traffic", traffic)
 	router.POST(prefix+"/traffic", traffic)
 
+	router.GET(prefix+"/sites", statistics.GetUsersByPages)
 	router.POST(prefix+"/sites", statistics.GetUsersByPages)
 
+	router.GET(prefix+"/graph", statistics.GetTrafficStats)
 	router.POST(prefix+"/graph", statistics.GetTrafficStats)
 
+	router.GET(prefix+"/active", statistics.GetActiveUsers)
 	router.POST(prefix+"/active", statistics.GetActiveUsers)
 
+	router.GET(prefix+"/time", statistics.GetTimeOnTheSite)
 	router.POST(prefix+"/time", statistics.GetTimeOnTheSite)
 
+	router.GET(prefix+"/get-sites", getSites)
 	router.POST(prefix+"/get-sites", getSites)
 
+	router.GET(prefix+"/get-locations", getLocations)
 	router.POST(prefix+"/get-locations", getLocations)
 
 	router.GET(prefix+"/bounce-rate", getBounceRate)
+	router.POST(prefix+"/bounce-rate", getBounceRate)
 
+	router.GET(prefix+"/cohort", getCohortData)
 	router.POST(prefix+"/cohort", getCohortData)
 
+	router.GET(prefix+"/average-journey", getAverageJourney)
 	router.POST(prefix+"/average-journey", getAverageJourney)
 
 	router.GET(prefix+"/statistics/traffic-by-day-of-week", getTrafficByDayOfWeek)
+	router.POST(prefix+"/statistics/traffic-by-day-of-week", getTrafficByDayOfWeek)
+
 	router.GET(prefix+"/statistics/traffic-by-hour-of-day", getTrafficByHourOfDay)
+	router.POST(prefix+"/statistics/traffic-by-hour-of-day", getTrafficByHourOfDay)
+
 	router.GET(prefix+"/statistics/unique-pages", getUniquePages)
+	router.POST(prefix+"/statistics/unique-pages", getUniquePages)
+
 	router.GET(prefix+"/statistics/archetypes", getArchetypes)
+	router.POST(prefix+"/statistics/archetypes", getArchetypes)
+
+	// Analytics & Insights (registered now to fix 404s)
+	router.GET(prefix+"/statistics/funnel", getFunnelStats)
+	router.POST(prefix+"/statistics/funnel", getFunnelStats)
+
+	router.GET(prefix+"/statistics/engagement", getEngagement)
+	router.POST(prefix+"/statistics/engagement", getEngagement)
+
+	router.GET(prefix+"/statistics/alerts", getAlerts)
+	router.POST(prefix+"/statistics/alerts", getAlerts)
+
+	router.GET(prefix+"/statistics/geotemporal", getGeoTemporal)
+	router.POST(prefix+"/statistics/geotemporal", getGeoTemporal)
+
+	// Landing and Exit Pages analytics
+	router.GET(prefix+"/statistics/landing-pages", getLandingPages)
+	router.POST(prefix+"/statistics/landing-pages", getLandingPages)
+
+	router.GET(prefix+"/statistics/exit-pages", getExitPages)
+	router.POST(prefix+"/statistics/exit-pages", getExitPages)
 
 	// Health check endpoint
 	router.GET(prefix+"/health", func(c *gin.Context) {

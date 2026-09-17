@@ -10,7 +10,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - /var/lib/postgresql/data
+      - timescaledb_data:/var/lib/postgresql/data
 
   frontend:
     build: ./frontend
@@ -19,7 +19,6 @@ services:
     env_file: ./.env
     depends_on:
       - backend
-    
 
   backend:
     build: ./backend
@@ -30,3 +29,6 @@ services:
       - "3001:3001"
     depends_on:
       - timescaledb
+
+volumes:
+  timescaledb_data:
