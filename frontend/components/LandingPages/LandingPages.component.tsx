@@ -133,7 +133,7 @@ export default function LandingPages({ site, from, to }: Props) {
     fetchData();
   }, [site, from, to]);
 
-  const exportCSV = (data: Record<string, unknown>[], filename: string) => {
+  const exportCSV = <T extends object>(data: T[], filename: string) => {
     if (!data.length) return;
     const headers = Object.keys(data[0]).join(",");
     const rows = data.map((item) => Object.values(item).join(",")).join("\n");
