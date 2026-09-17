@@ -43,7 +43,7 @@ import LandingPages from "../LandingPages/LandingPages.component";
 import { formatLocalDate } from "@/utils/date";
 
 const { Content } = Layout;
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 export default function Home() {
   const [sites, setSites] = useState<string[]>([]);
