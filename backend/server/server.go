@@ -4,13 +4,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"statistics/analysis"
 	"statistics/database"
 	"statistics/geolocation"
 	"statistics/prometheus"
 	"statistics/statistics"
 	"statistics/structs"
+	"strconv"
 	"time"
 
 	gpmiddleware "github.com/carousell/gin-prometheus-middleware"
@@ -420,7 +420,6 @@ func getArchetypes(c *gin.Context) {
 	c.JSON(http.StatusOK, archetypes)
 }
 
-
 func Server() {
 	router := gin.Default()
 	port := os.Getenv("BACKEND_PORT")
@@ -470,7 +469,7 @@ func Server() {
 	log.Println("prefix", prefix)
 	log.Print("Starting server on port " + port)
 	err := router.Run("0.0.0.0:" + port)
-	if (err) == nil {
+	if err != nil {
 		log.Println("Failed to start server", "error", err)
 		panic(err)
 	}

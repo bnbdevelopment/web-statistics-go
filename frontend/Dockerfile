@@ -15,8 +15,9 @@ FROM base AS deps
 
 COPY package.json package-lock.json* ./
 
-RUN npm ci --only=production --no-audit --no-fund && \
-    npm audit --audit-level=moderate || true
+# Build dependencies are required for Next.js TypeScript compilation. Only the
+# generated standalone output is copied into the runtime image.
+RUN npm ci --no-audit --no-fund
 
 # Stage 2: Build the application
 FROM base AS builder

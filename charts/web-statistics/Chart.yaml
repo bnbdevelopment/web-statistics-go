@@ -1,0 +1,15 @@
+apiVersion: v2
+name: web-statistics
+description: Web traffic analytics backend and dashboard
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.25.0-0"
+home: https://github.com/bnbdevelopment/web-statistics-go
+icon: https://raw.githubusercontent.com/bnbdevelopment/web-statistics-go/main/frontend/public/logo.png
+sources:
+  - https://github.com/bnbdevelopment/web-statistics-go
+maintainers:
+  - name: bnbdevelopment
+annotations:
+  artifacthub.io/license: MIT
