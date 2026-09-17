@@ -14,7 +14,7 @@ backend:
   image:
     registry: europe-west3-docker.pkg.dev
     repository: bnbdevelopment/webstats/backend
-    tag: "0.1.0" # backend-version
+    tag: "0.2.0" # backend-version
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -91,7 +91,7 @@ frontend:
   image:
     registry: europe-west3-docker.pkg.dev
     repository: bnbdevelopment/webstats/frontend
-    tag: "0.1.0" # frontend-version
+    tag: "0.2.0" # frontend-version
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
