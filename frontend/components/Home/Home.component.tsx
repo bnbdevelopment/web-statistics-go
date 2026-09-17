@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import dynamic from "next/dynamic";
 import {
   Card,
   Statistic,
@@ -10,6 +11,7 @@ import {
   Typography,
   Tooltip,
   Collapse,
+  Skeleton,
 } from "antd";
 import {
   AreaChart,
@@ -28,19 +30,49 @@ import {
   ArrowUpOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
-import MapComponent from "../Map/Map.component";
 import StatisticsTable from "../StatisticsTable/StatisticsTable.component";
 import Header from "../Header/Header.component";
 import Footer from "../Footer/Footer.component";
-import CohortAnalysis from "../CohortAnalysis/CohortAnalysis.component";
-import AverageJourney from "../AverageJourney/AverageJourney.component";
-import TimeAnalysis from "../TimeAnalysis/TimeAnalysis.component";
-import Archetypes from "../Archetypes/Archetypes.component";
-import Funnel from "../Funnel/Funnel.component";
-import Engagement from "../Engagement/Engagement.component";
-import Alerts from "../Alerts/Alerts.component";
-import LandingPages from "../LandingPages/LandingPages.component";
 import { formatLocalDate } from "@/utils/date";
+
+// Dynamic code-splitting for heavy client-side components to minimize initial bundle size
+const MapComponent = dynamic(() => import("../Map/Map.component"), {
+  ssr: false,
+  loading: () => <Skeleton active style={{ minHeight: 350, padding: 24 }} />,
+});
+
+const AverageJourney = dynamic(() => import("../AverageJourney/AverageJourney.component"), {
+  ssr: false,
+  loading: () => <Skeleton active style={{ minHeight: 350, padding: 24 }} />,
+});
+
+const CohortAnalysis = dynamic(() => import("../CohortAnalysis/CohortAnalysis.component"), {
+  loading: () => <Skeleton active paragraph={{ rows: 4 }} />,
+});
+
+const TimeAnalysis = dynamic(() => import("../TimeAnalysis/TimeAnalysis.component"), {
+  loading: () => <Skeleton active paragraph={{ rows: 4 }} />,
+});
+
+const Archetypes = dynamic(() => import("../Archetypes/Archetypes.component"), {
+  loading: () => <Skeleton active paragraph={{ rows: 4 }} />,
+});
+
+const Funnel = dynamic(() => import("../Funnel/Funnel.component"), {
+  loading: () => <Skeleton active paragraph={{ rows: 4 }} />,
+});
+
+const Engagement = dynamic(() => import("../Engagement/Engagement.component"), {
+  loading: () => <Skeleton active paragraph={{ rows: 4 }} />,
+});
+
+const Alerts = dynamic(() => import("../Alerts/Alerts.component"), {
+  loading: () => <Skeleton active paragraph={{ rows: 3 }} />,
+});
+
+const LandingPages = dynamic(() => import("../LandingPages/LandingPages.component"), {
+  loading: () => <Skeleton active paragraph={{ rows: 5 }} />,
+});
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -89,6 +121,9 @@ export default function Home() {
   }, [selectedSite]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+
     const fromStr = formatLocalDate(fromDate);
     const toStr = formatLocalDate(toDate);
     const from = fromStr ? `&from=${fromStr}` : "";
@@ -112,18 +147,6 @@ export default function Home() {
       toYesterday = `&to=${formatLocalDate(yesterday)}`;
     }
 
-    // visitors current
-    fetch(`/api/v1/traffic?${siteParam}${from}${to}`)
-      .then((response) => response.json())
-      .then((data) => setVisitors(data.traffic || 0))
-      .catch((error) => console.error("Error fetching visitors:", error));
-
-    // visitors previous period
-    fetch(`/api/v1/traffic?${siteParam}${fromYesterday}${toYesterday}`)
-      .then((response) => response.json())
-      .then((data) => setVisitorsYesterday(data.traffic || 0))
-      .catch((error) => console.error("Error fetching visitors yesterday:", error));
-
     // chart interval calculation:
     let numIntervals = 24;
     if (fromDate && toDate) {
@@ -134,36 +157,46 @@ export default function Home() {
       else numIntervals = 30;
     }
 
-    fetch(`/api/v1/graph?${siteParam}&intervals=${numIntervals}${from}${to}`)
-      .then((response) => response.json())
-      .then((data) => setVisitToChart(data || []))
-      .catch((error) => console.error("Error fetching graph data:", error));
+    const safeFetch = async (url: string) => {
+      const res = await fetch(url, { signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    };
 
-    fetch(`/api/v1/time?${siteParam}${from}${to}`)
-      .then((response) => response.json())
-      .then((data) => setSpentTime(data.avgTimeSpent || 0))
-      .catch((error) => console.error("Error fetching time:", error));
+    Promise.allSettled([
+      safeFetch(`/api/v1/traffic?${siteParam}${from}${to}`),
+      safeFetch(`/api/v1/traffic?${siteParam}${fromYesterday}${toYesterday}`),
+      safeFetch(`/api/v1/graph?${siteParam}&intervals=${numIntervals}${from}${to}`),
+      safeFetch(`/api/v1/time?${siteParam}${from}${to}`),
+      safeFetch(`/api/v1/time?${siteParam}${fromYesterday}${toYesterday}`),
+      safeFetch(`/api/v1/sites?${siteParam}${from}${to}`),
+      safeFetch(`/api/v1/bounce-rate?${siteParam}${from}${to}`),
+      safeFetch(`/api/v1/bounce-rate?${siteParam}${fromYesterday}${toYesterday}`),
+    ]).then(([trafficCurr, trafficPrev, graphRes, timeCurr, timePrev, sitesRes, bounceCurr, bouncePrev]) => {
+      if (signal.aborted) return;
 
-    fetch(`/api/v1/time?${siteParam}${fromYesterday}${toYesterday}`)
-      .then((response) => response.json())
-      .then((data) => setSpentTimeYesterday(data.avgTimeSpent || 0))
-      .catch((error) => console.error("Error fetching time yesterday:", error));
+      if (trafficCurr.status === "fulfilled") setVisitors(trafficCurr.value?.traffic || 0);
+      if (trafficPrev.status === "fulfilled") setVisitorsYesterday(trafficPrev.value?.traffic || 0);
+      if (graphRes.status === "fulfilled") setVisitToChart(graphRes.value || []);
+      if (timeCurr.status === "fulfilled") setSpentTime(timeCurr.value?.avgTimeSpent || 0);
+      if (timePrev.status === "fulfilled") setSpentTimeYesterday(timePrev.value?.avgTimeSpent || 0);
+      if (sitesRes.status === "fulfilled") setSitesTraffic(sitesRes.value || []);
+      if (bounceCurr.status === "fulfilled") setBounceRate(bounceCurr.value?.bounceRate || 0);
+      if (bouncePrev.status === "fulfilled") setBounceRateYesterday(bouncePrev.value?.bounceRate || 0);
+    }).catch((err) => {
+      if (!signal.aborted) {
+        console.error("Error fetching dashboard data:", err);
+      }
+    });
 
-    fetch(`/api/v1/sites?${siteParam}${from}${to}`)
-      .then((response) => response.json())
-      .then((data) => setSitesTraffic(data || []))
-      .catch((error) => console.error("Error fetching site pages:", error));
-
-    fetch(`/api/v1/bounce-rate?${siteParam}${from}${to}`)
-      .then((response) => response.json())
-      .then((data) => setBounceRate(data.bounceRate || 0))
-      .catch((error) => console.error("Error fetching bounce rate:", error));
-
-    fetch(`/api/v1/bounce-rate?${siteParam}${fromYesterday}${toYesterday}`)
-      .then((response) => response.json())
-      .then((data) => setBounceRateYesterday(data.bounceRate || 0))
-      .catch((error) => console.error("Error fetching bounce rate yesterday:", error));
+    return () => {
+      controller.abort();
+    };
   }, [selectedSite, fromDate, toDate]);
+
+  const topPagesData = useMemo(() => {
+    return [...sitesTraffic].sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [sitesTraffic]);
 
   const calcDelta = (current: number, prev: number) => {
     if (prev <= 0) return null;
@@ -369,9 +402,7 @@ export default function Home() {
                   <ResponsiveContainer>
                     <BarChart
                       layout="vertical"
-                      data={[...sitesTraffic]
-                        .sort((a, b) => b.count - a.count)
-                        .slice(0, 5)}
+                      data={topPagesData}
                       margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
@@ -391,7 +422,12 @@ export default function Home() {
             <Title level={4}>Mélyebb elemzések és intelligens betekintők</Title>
           </Divider>
 
-          <Collapse ghost defaultActiveKey={["landing-exit", "funnel"]} accordion={false}>
+          <Collapse
+            ghost
+            defaultActiveKey={["landing-exit", "funnel"]}
+            accordion={false}
+            destroyInactivePanel={true}
+          >
             <Collapse.Panel
               key="landing-exit"
               header="Belépő és Kilépő oldalak elemzése (Landing & Exit Pages)"
