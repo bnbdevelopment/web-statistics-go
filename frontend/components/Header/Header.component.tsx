@@ -50,13 +50,22 @@ export default function Header({
                 style={{ width: "100%" }}
                 placeholder="Válassz webhelyet"
                 value={selectedSite || ""}
-                options={sites
-                  .filter((site) => site !== "")
-                  .map((site: string) => ({ value: site, label: site }))}
+                allowClear
+                options={[
+                  { value: "", label: "Összes webhely" },
+                  ...sites
+                    .filter((site) => site !== "")
+                    .map((site: string) => ({ value: site, label: site })),
+                ]}
                 onChange={(value) => {
-                  onSiteChange(value);
+                  const siteVal = value || "";
+                  onSiteChange(siteVal);
                   const params = new URLSearchParams(searchParams.toString());
-                  params.set("site", value);
+                  if (siteVal) {
+                    params.set("site", siteVal);
+                  } else {
+                    params.delete("site");
+                  }
                   router.replace(`?${params.toString()}`);
                 }}
               />

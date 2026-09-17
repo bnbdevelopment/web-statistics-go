@@ -16,6 +16,7 @@ import "reactflow/dist/style.css";
 import dagre from "dagre";
 import { Spin, Alert, Empty, Select } from "antd";
 import { TeamOutlined } from "@ant-design/icons";
+import { formatLocalDate } from "@/utils/date";
 
 // --- TÍPUSOK ---
 interface ApiNode {
@@ -139,8 +140,8 @@ const AverageJourney = ({
   const [uniquePages, setUniquePages] = useState<string[]>([]);
 
   // Dátumok stringesítése
-  const fromStr = from ? from.toISOString().split("T")[0] : "";
-  const toStr = to ? to.toISOString().split("T")[0] : "";
+  const fromStr = from ? formatLocalDate(from) : "";
+  const toStr = to ? formatLocalDate(to) : "";
 
   // Fetch unique pages for filter dropdowns
   useEffect(() => {

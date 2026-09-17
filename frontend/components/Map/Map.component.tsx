@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
 import type * as Leaflet from "leaflet";
+import { formatLocalDate } from "@/utils/date";
 
 interface LocationData {
   City: string;
@@ -145,15 +146,15 @@ const MapComponent = ({
 
     const fetchLocations = async () => {
       try {
-        const res = await fetch(
-          `/api/v1/get-locations?page=${site}${from ? `&from=${from.toISOString().split("T")[0]}` : ""}${
-            to ? `&to=${to.toISOString().split("T")[0]}` : ""
-          }`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          },
-        );
+        const params = new URLSearchParams();
+        if (site) params.set("site", site);
+        if (from) params.set("from", formatLocalDate(from));
+        if (to) params.set("to", formatLocalDate(to));
+
+        const res = await fetch(`/api/v1/get-locations?${params.toString()}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
