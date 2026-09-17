@@ -60,9 +60,11 @@ func (q *IngestionQueue) Enqueue(metric structs.WebMetric) bool {
 		// Queue full: fallback to direct insert to prevent metric loss under burst load
 		atomic.AddUint64(&q.fallbackInserts, 1)
 		log.Println("Ingestion queue full, performing synchronous fallback insert")
-		if err := Session.Create(&metric).Error; err != nil {
-			log.Printf("Fallback insert failed: %v", err)
-			return false
+		if Session != nil {
+			if err := Session.Create(&metric).Error; err != nil {
+				log.Printf("Fallback insert failed: %v", err)
+				return false
+			}
 		}
 		return true
 	}
@@ -81,9 +83,11 @@ func (q *IngestionQueue) worker() {
 		if len(batch) == 0 {
 			return
 		}
-		if err := Session.CreateInBatches(batch, len(batch)).Error; err != nil {
-			atomic.AddUint64(&q.batchErrors, 1)
-			log.Printf("Batch insertion error (%d items): %v", len(batch), err)
+		if Session != nil {
+			if err := Session.CreateInBatches(batch, len(batch)).Error; err != nil {
+				atomic.AddUint64(&q.batchErrors, 1)
+				log.Printf("Batch insertion error (%d items): %v", len(batch), err)
+			}
 		}
 		batch = make([]structs.WebMetric, 0, q.batchSize)
 	}
