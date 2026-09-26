@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Card, Row, Col, List, Tag, Spin, Alert, Empty } from "antd";
+import { formatLocalDate } from "@/utils/date";
 import { UserOutlined, ClockCircleOutlined, RetweetOutlined, AimOutlined } from "@ant-design/icons";
 
 // --- Types ---
@@ -43,8 +44,8 @@ const Archetypes = ({ site, from, to }: ArchetypesProps) => {
 
   useEffect(() => {
     setLoading(true);
-    const fromDate = from ? `&from=${from.toISOString().split("T")[0]}` : "";
-    const toDate = to ? `&to=${to.toISOString().split("T")[0]}` : "";
+    const fromDate = from ? `&from=${formatLocalDate(from)}` : "";
+    const toDate = to ? `&to=${formatLocalDate(to)}` : "";
     const siteFilter = site ? `&site=${site}` : "";
 
     fetch(`/api/v1/statistics/archetypes?${siteFilter}${fromDate}${toDate}`)

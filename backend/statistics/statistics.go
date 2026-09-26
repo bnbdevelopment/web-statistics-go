@@ -2,10 +2,14 @@ package statistics
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"statistics/analysis"
+	"statistics/config"
 	"statistics/database"
 	"statistics/structs"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -121,7 +125,10 @@ type SiteTraffic struct {
 func GetUsersByPages(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
-	page := c.Query("page")
+	site := c.Query("site")
+	if site == "" {
+		site = c.Query("page")
+	}
 
 	end := time.Now()
 	if endStr != "" {
@@ -144,9 +151,9 @@ func GetUsersByPages(c *gin.Context) {
 		start = t
 	}
 
-	// Build base query – you’ll need a table with at least session_id, url, time
+	// Build base query
 	var results []SiteTraffic
-	if page == "" {
+	if site == "" {
 		query := `
 				SELECT page, COUNT(*) AS count
 				FROM (
@@ -172,7 +179,7 @@ func GetUsersByPages(c *gin.Context) {
 				GROUP BY page
 				ORDER BY count DESC;
 			`
-		if err := database.Session.Raw(query, start, end, page).Scan(&results).Error; err != nil {
+		if err := database.Session.Raw(query, start, end, site).Scan(&results).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -182,9 +189,11 @@ func GetUsersByPages(c *gin.Context) {
 }
 
 type TrafficStat struct {
-	Interval       int `json:"interval"`
-	UniqueSessions int `json:"uniqueSessions"`
-	TotalRequests  int `json:"totalRequests"`
+	Interval       int    `json:"interval"`
+	Label          string `json:"label"`
+	Timestamp      string `json:"timestamp"`
+	UniqueSessions int    `json:"uniqueSessions"`
+	TotalRequests  int    `json:"totalRequests"`
 }
 
 // DB model for your traffic table
@@ -198,7 +207,10 @@ func GetTrafficStats(c *gin.Context) {
 	startStr := c.Query("from")
 	endStr := c.Query("to")
 	intervalsStr := c.DefaultQuery("intervals", "10")
-	page := c.Query("page")
+	site := c.Query("site")
+	if site == "" {
+		site = c.Query("page")
+	}
 	layout := "2006-01-02"
 	// default: last 24h
 	end := time.Now()
@@ -237,7 +249,7 @@ func GetTrafficStats(c *gin.Context) {
 	}
 	var results []Result
 
-	if page == "" {
+	if site == "" {
 
 		query := `
 			WITH interval_data AS (
@@ -282,7 +294,7 @@ func GetTrafficStats(c *gin.Context) {
 	ORDER BY interval
 `
 
-		if err := database.Session.Raw(query, start, intervalDuration.Seconds(), start, end, page).Scan(&results).Error; err != nil {
+		if err := database.Session.Raw(query, start, intervalDuration.Seconds(), start, end, site).Scan(&results).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -290,8 +302,18 @@ func GetTrafficStats(c *gin.Context) {
 
 	stats := make([]TrafficStat, intervals)
 	for i := 0; i < intervals; i++ {
+		tInterval := start.Add(time.Duration(i) * intervalDuration)
+		var label string
+		if totalDuration <= 36*time.Hour {
+			label = tInterval.Format("15:04")
+		} else {
+			label = tInterval.Format("01-02 15:04")
+		}
+
 		stats[i] = TrafficStat{
 			Interval:       i,
+			Label:          label,
+			Timestamp:      tInterval.Format(time.RFC3339),
 			UniqueSessions: 0,
 			TotalRequests:  0,
 		}
@@ -299,11 +321,8 @@ func GetTrafficStats(c *gin.Context) {
 
 	for _, r := range results {
 		if r.Interval >= 0 && r.Interval < intervals {
-			stats[r.Interval] = TrafficStat{
-				Interval:       r.Interval,
-				UniqueSessions: r.UniqueSessions,
-				TotalRequests:  r.TotalRequests,
-			}
+			stats[r.Interval].UniqueSessions = r.UniqueSessions
+			stats[r.Interval].TotalRequests = r.TotalRequests
 		}
 	}
 
@@ -325,6 +344,111 @@ func GetActiveUsers(c *gin.Context) {
 
 type AvgTimeResponse struct {
 	AvgTimeSpent float64 `json:"avgTimeSpent"`
+}
+
+// GetFunnelStats aggregates how many unique sessions touch each funnel step in order.
+func GetFunnelStats(site string, from, to time.Time, customSteps ...string) structs.FunnelResponse {
+	var stepDefinitions []config.FunnelStep
+	for _, s := range customSteps {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			stepDefinitions = append(stepDefinitions, config.FunnelStep{
+				Label:    s,
+				Keywords: []string{strings.ToLower(s)},
+			})
+		}
+	}
+	if len(stepDefinitions) == 0 {
+		stepDefinitions = config.GetFunnelSteps(site)
+	}
+	if len(stepDefinitions) == 0 {
+		return structs.FunnelResponse{Steps: []structs.FunnelStepStat{}}
+	}
+
+	sessionFeatures, err := analysis.GetSessionFeatures(site, from, to)
+	if err != nil || len(sessionFeatures) == 0 {
+		return structs.FunnelResponse{Steps: []structs.FunnelStepStat{}}
+	}
+
+	sessionResults := make(map[string][]bool)
+	for _, feature := range sessionFeatures {
+		reached := make([]bool, len(stepDefinitions))
+		cursor := 0
+		for stepIndex := 0; stepIndex < len(stepDefinitions); stepIndex++ {
+			keywords := stepDefinitions[stepIndex].Keywords
+			matched := false
+			for cursor < len(feature.Pages) {
+				page := strings.ToLower(feature.Pages[cursor])
+				cursor++
+				for _, keyword := range keywords {
+					if keyword == "" {
+						continue
+					}
+					if strings.Contains(page, keyword) {
+						reached[stepIndex] = true
+						matched = true
+						break
+					}
+				}
+				if matched {
+					break
+				}
+			}
+			if !matched {
+				break
+			}
+		}
+		sessionResults[feature.SessionID] = reached
+	}
+
+	counts := make([]int, len(stepDefinitions))
+	firstStepSessions := 0
+	for _, reached := range sessionResults {
+		if len(reached) == 0 || !reached[0] {
+			continue
+		}
+		firstStepSessions++
+		for idx, ok := range reached {
+			if ok {
+				counts[idx]++
+			} else {
+				break
+			}
+		}
+	}
+
+	if firstStepSessions == 0 {
+		return structs.FunnelResponse{Steps: []structs.FunnelStepStat{}}
+	}
+
+	var stepsStats []structs.FunnelStepStat
+	prev := firstStepSessions
+	for idx, step := range stepDefinitions {
+		reached := counts[idx]
+		conv := 0.0
+		if prev > 0 {
+			conv = math.Round((float64(reached)/float64(prev))*1000) / 10
+		}
+		drop := math.Max(0, 100-conv)
+		stepsStats = append(stepsStats, structs.FunnelStepStat{
+			Step:       step.Label,
+			Users:      reached,
+			Conversion: conv,
+			Dropoff:    drop,
+		})
+		prev = reached
+	}
+
+	overall := 0.0
+	if firstStepSessions > 0 {
+		overall = math.Round((float64(prev)/float64(firstStepSessions))*1000) / 10
+	}
+
+	return structs.FunnelResponse{
+		Steps:         stepsStats,
+		FirstStepSize: firstStepSessions,
+		Overall:       overall,
+	}
 }
 
 func GetTimeOnTheSite(c *gin.Context) {
@@ -361,45 +485,46 @@ func GetTimeOnTheSite(c *gin.Context) {
 }
 
 func GetBounceRate(start, end time.Time, site string) float64 {
-	var totalSessions int64
-	var bouncedSessions int64
-
-	// Query for total sessions within the time range and optionally filtered by site
-	dbQuery := database.Session.
-		Model(&structs.WebMetric{}).
-		Where("timestamp >= ? AND timestamp <= ?", start, end)
-
-	if site != "" {
-		dbQuery = dbQuery.Where("site = ?", site)
+	type bounceResult struct {
+		TotalSessions   int64 `gorm:"column:total_sessions"`
+		BouncedSessions int64 `gorm:"column:bounced_sessions"`
 	}
 
-	dbQuery.Distinct("session_id").Count(&totalSessions)
-
-	// Query for bounced sessions (sessions with only one page view)
-	// Subquery to count entries per session_id within the time range and site filter
-	subQuery := database.Session.
-		Select("session_id").
-		Table("web_metrics").
-		Where("timestamp >= ? AND timestamp <= ?", start, end)
-
-	if site != "" {
-		subQuery = subQuery.Where("site = ?", site)
+	var res bounceResult
+	var query string
+	if site == "" {
+		query = `
+			SELECT 
+				COUNT(*) AS total_sessions,
+				COUNT(CASE WHEN page_count = 1 THEN 1 END) AS bounced_sessions
+			FROM (
+				SELECT session_id, COUNT(*) AS page_count
+				FROM web_metrics
+				WHERE timestamp >= ? AND timestamp <= ?
+				GROUP BY session_id
+			) s;
+		`
+		database.Session.Raw(query, start, end).Scan(&res)
+	} else {
+		query = `
+			SELECT 
+				COUNT(*) AS total_sessions,
+				COUNT(CASE WHEN page_count = 1 THEN 1 END) AS bounced_sessions
+			FROM (
+				SELECT session_id, COUNT(*) AS page_count
+				FROM web_metrics
+				WHERE timestamp >= ? AND timestamp <= ? AND site = ?
+				GROUP BY session_id
+			) s;
+		`
+		database.Session.Raw(query, start, end, site).Scan(&res)
 	}
 
-	subQuery.
-		Group("session_id").
-		Having("COUNT(*) = 1")
-
-	// Main query to count how many distinct session_ids from the subquery exist
-	database.Session.
-		Table("(?) as bounced", subQuery).
-		Count(&bouncedSessions)
-
-	if totalSessions == 0 {
+	if res.TotalSessions == 0 {
 		return 0.0
 	}
 
-	return float64(bouncedSessions) / float64(totalSessions) * 100.0
+	return math.Round((float64(res.BouncedSessions)/float64(res.TotalSessions)*100.0)*10) / 10
 }
 
 func GetCohortData(start, end time.Time, site string, numberOfWeeks int) []structs.CohortData {
@@ -516,6 +641,9 @@ func GetAverageJourney(start, end time.Time, site, startPageFilter, endPageFilte
         WHERE
             target_page IS NOT NULL AND source_page != target_page
     `
+	if site == "" {
+		site = "%"
+	}
 	queryParams := []interface{}{start, end, site}
 
 	if startPageFilter != "" && startPageFilter != "%" {
@@ -534,9 +662,6 @@ func GetAverageJourney(start, end time.Time, site, startPageFilter, endPageFilte
         ORDER BY
             flow_count DESC
     `
-	if site == "" {
-		site = "%"
-	}
 
 	database.Session.Raw(query, queryParams...).Scan(&flows)
 
@@ -589,4 +714,132 @@ func GetAllUniquePages(site string, from, to time.Time) ([]string, error) {
 	}
 
 	return pages, nil
+}
+
+// GetLandingPages returns the most common initial landing pages and their bounce rates.
+func GetLandingPages(site string, from, to time.Time, limit int) ([]structs.LandingPageStat, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	var results []structs.LandingPageStat
+
+	var query string
+	var err error
+	if site == "" {
+		query = `
+			WITH session_landing AS (
+				SELECT 
+					session_id,
+					(ARRAY_AGG(page ORDER BY timestamp ASC))[1] AS landing_page,
+					COUNT(*) AS total_views
+				FROM web_metrics
+				WHERE timestamp >= ? AND timestamp <= ?
+				GROUP BY session_id
+			)
+			SELECT 
+				landing_page AS page,
+				COUNT(*) AS sessions,
+				COUNT(CASE WHEN total_views = 1 THEN 1 END) AS bounces,
+				ROUND((COUNT(CASE WHEN total_views = 1 THEN 1 END)::numeric / NULLIF(COUNT(*), 0)::numeric) * 100, 1)::float8 AS bounce_rate
+			FROM session_landing
+			WHERE landing_page IS NOT NULL AND landing_page != ''
+			GROUP BY landing_page
+			ORDER BY sessions DESC
+			LIMIT ?;
+		`
+		err = database.Session.Raw(query, from, to, limit).Scan(&results).Error
+	} else {
+		query = `
+			WITH session_landing AS (
+				SELECT 
+					session_id,
+					(ARRAY_AGG(page ORDER BY timestamp ASC))[1] AS landing_page,
+					COUNT(*) AS total_views
+				FROM web_metrics
+				WHERE timestamp >= ? AND timestamp <= ? AND site = ?
+				GROUP BY session_id
+			)
+			SELECT 
+				landing_page AS page,
+				COUNT(*) AS sessions,
+				COUNT(CASE WHEN total_views = 1 THEN 1 END) AS bounces,
+				ROUND((COUNT(CASE WHEN total_views = 1 THEN 1 END)::numeric / NULLIF(COUNT(*), 0)::numeric) * 100, 1)::float8 AS bounce_rate
+			FROM session_landing
+			WHERE landing_page IS NOT NULL AND landing_page != ''
+			GROUP BY landing_page
+			ORDER BY sessions DESC
+			LIMIT ?;
+		`
+		err = database.Session.Raw(query, from, to, site, limit).Scan(&results).Error
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get landing pages: %w", err)
+	}
+	return results, nil
+}
+
+// GetExitPages returns the most common departure pages where sessions ended.
+func GetExitPages(site string, from, to time.Time, limit int) ([]structs.ExitPageStat, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	var results []structs.ExitPageStat
+
+	var query string
+	var err error
+	if site == "" {
+		query = `
+			WITH session_exit AS (
+				SELECT 
+					session_id,
+					(ARRAY_AGG(page ORDER BY timestamp DESC))[1] AS exit_page
+				FROM web_metrics
+				WHERE timestamp >= ? AND timestamp <= ?
+				GROUP BY session_id
+			),
+			total_count AS (
+				SELECT COUNT(*) AS total_sessions FROM session_exit
+			)
+			SELECT 
+				exit_page AS page,
+				COUNT(*) AS exits,
+				ROUND((COUNT(*)::numeric / NULLIF((SELECT total_sessions FROM total_count), 0)::numeric) * 100, 1)::float8 AS exit_rate
+			FROM session_exit
+			WHERE exit_page IS NOT NULL AND exit_page != ''
+			GROUP BY exit_page
+			ORDER BY exits DESC
+			LIMIT ?;
+		`
+		err = database.Session.Raw(query, from, to, limit).Scan(&results).Error
+	} else {
+		query = `
+			WITH session_exit AS (
+				SELECT 
+					session_id,
+					(ARRAY_AGG(page ORDER BY timestamp DESC))[1] AS exit_page
+				FROM web_metrics
+				WHERE timestamp >= ? AND timestamp <= ? AND site = ?
+				GROUP BY session_id
+			),
+			total_count AS (
+				SELECT COUNT(*) AS total_sessions FROM session_exit
+			)
+			SELECT 
+				exit_page AS page,
+				COUNT(*) AS exits,
+				ROUND((COUNT(*)::numeric / NULLIF((SELECT total_sessions FROM total_count), 0)::numeric) * 100, 1)::float8 AS exit_rate
+			FROM session_exit
+			WHERE exit_page IS NOT NULL AND exit_page != ''
+			GROUP BY exit_page
+			ORDER BY exits DESC
+			LIMIT ?;
+		`
+		err = database.Session.Raw(query, from, to, site, limit).Scan(&results).Error
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get exit pages: %w", err)
+	}
+	return results, nil
 }

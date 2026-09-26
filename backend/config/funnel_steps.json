@@ -1,0 +1,8 @@
+{
+	"default": [
+		{ "label": "Kampány landing", "keywords": ["landing", "kampany", "promo"] },
+		{ "label": "Regisztrációs űrlap", "keywords": ["register", "signup", "regisztracio"] },
+		{ "label": "Próbaanyag indítása", "keywords": ["trial", "demo", "ingyenes"] },
+		{ "label": "Fizetés / beiratkozás", "keywords": ["checkout", "payment", "befizetes"] }
+	]
+}

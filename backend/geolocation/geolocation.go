@@ -28,6 +28,7 @@ type GeoData struct {
 var (
 	service  *GeoService
 	once     sync.Once
+	geoCache sync.Map
 	localIps = map[string]struct{}{ // Use a map for efficient lookups
 		"127.0.0.1": {},
 		"::1":       {},
@@ -57,13 +58,19 @@ var ErrInvalidIP = errors.New("invalid IP address")
 
 // Lookup performs IP geolocation lookup
 func Lookup(ipStr string) (*GeoData, error) {
+	if cached, ok := geoCache.Load(ipStr); ok {
+		return cached.(*GeoData), nil
+	}
+
 	if _, isLocal := localIps[ipStr]; isLocal {
-		return &GeoData{
+		data := &GeoData{
 			CountryCode: "00",
 			CountryName: "Localhost",
 			Latitude:    0,
 			Longitude:   0,
-		}, nil
+		}
+		geoCache.Store(ipStr, data)
+		return data, nil
 	}
 
 	if service == nil || service.reader == nil {
@@ -100,6 +107,7 @@ func Lookup(ipStr string) (*GeoData, error) {
 		geoData.Region = record.Subdivisions[0].Names["en"]
 	}
 
+	geoCache.Store(ipStr, geoData)
 	return geoData, nil
 }
 

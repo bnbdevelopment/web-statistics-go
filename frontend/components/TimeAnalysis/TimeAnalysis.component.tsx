@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, Col, Row } from "antd";
+import { formatLocalDate } from "@/utils/date";
 import {
   Bar,
   BarChart,
@@ -14,8 +15,6 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-
-
 
 interface TimeAnalysisProps {
   site: string;
@@ -38,8 +37,8 @@ const TimeAnalysis = ({ site, from, to }: TimeAnalysisProps) => {
   const [hourData, setHourData] = useState<HourData[]>([]);
 
   useEffect(() => {
-    const fromDate = from ? `&from=${from.toISOString().split("T")[0]}` : "";
-    const toDate = to ? `&to=${to.toISOString().split("T")[0]}` : "";
+    const fromDate = from ? `&from=${formatLocalDate(from)}` : "";
+    const toDate = to ? `&to=${formatLocalDate(to)}` : "";
 
     // Fetch traffic by day of week
     fetch(

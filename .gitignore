@@ -34,3 +34,4 @@ go.work.sum
 
 .tmp
 CLAUDE.md
+.DS_Store

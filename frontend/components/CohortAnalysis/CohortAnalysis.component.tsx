@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { formatLocalDate } from "@/utils/date";
 import {
   Table,
   Spin,
@@ -103,8 +104,8 @@ const CohortAnalysis = ({
 
   useEffect(() => {
     setLoading(true);
-    const fromDate = from ? `&from=${from.toISOString().split("T")[0]}` : "";
-    const toDate = to ? `&to=${to.toISOString().split("T")[0]}` : "";
+    const fromDate = from ? `&from=${formatLocalDate(from)}` : "";
+    const toDate = to ? `&to=${formatLocalDate(to)}` : "";
     const siteFilter = site ? `&site=${site}` : "";
 
     fetch(
